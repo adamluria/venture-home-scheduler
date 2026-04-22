@@ -1,0 +1,37 @@
+# Files uploaded to Cloud Build — exclude everything we don't need
+# This MUST include node_modules (Cloud Build runs npm install itself)
+# and any temp/build artifacts that might have bad timestamps.
+
+node_modules/
+dist/
+.git/
+.gitignore
+
+# Secrets
+.env
+.env.local
+.env.*.local
+
+# Vite temp files (these caused the "timestamp before 1980" error)
+*.timestamp-*.mjs
+vite.config.js.timestamp-*
+
+# Documentation / memory
+docs/
+.auto-memory/
+*.md
+!README.md
+
+# Salesforce data exports (not needed in the build)
+*.xlsx
+*.xls
+*.docx
+*.pdf
+*.csv
+
+# Mac junk
+.DS_Store
+
+# Editor files
+.vscode/
+.idea/

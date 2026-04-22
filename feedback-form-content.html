@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VH Scheduler — Beta Feedback Form</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0ebf8; color: #202124; line-height: 1.6; padding: 24px 16px; }
+  .form-container { max-width: 640px; margin: 0 auto; }
+
+  /* Top banner */
+  .banner { background: linear-gradient(135deg, #d97706, #f59e0b); border-radius: 8px 8px 0 0; padding: 24px 28px; color: #fff; }
+  .banner h1 { font-size: 28px; font-weight: 600; margin-bottom: 6px; }
+  .banner p { font-size: 14px; opacity: 0.92; }
+
+  /* Card sections */
+  .card { background: #fff; border: 1px solid #dadce0; border-radius: 8px; padding: 24px 28px; margin-top: 12px; }
+  .card h2 { font-size: 17px; font-weight: 600; color: #202124; margin-bottom: 4px; }
+  .card .section-desc { font-size: 13px; color: #5f6368; margin-bottom: 18px; }
+
+  /* Questions */
+  .question { margin-bottom: 22px; }
+  .question:last-child { margin-bottom: 0; }
+  .q-label { font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 8px; }
+  .q-label .required { color: #d93025; margin-left: 2px; }
+  .q-hint { font-size: 12px; color: #80868b; margin-bottom: 8px; }
+
+  /* Scale row */
+  .scale-row { display: flex; align-items: center; gap: 0; margin-top: 4px; }
+  .scale-label { font-size: 12px; color: #5f6368; min-width: 80px; }
+  .scale-label.right { text-align: right; }
+  .scale-options { display: flex; gap: 16px; flex: 1; justify-content: center; }
+  .scale-option { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .scale-option input[type="radio"] { width: 18px; height: 18px; accent-color: #d97706; }
+  .scale-option span { font-size: 12px; color: #5f6368; }
+
+  /* Text inputs */
+  textarea { width: 100%; border: none; border-bottom: 1px solid #dadce0; padding: 8px 0; font-size: 14px; font-family: inherit; resize: vertical; min-height: 36px; outline: none; transition: border-color 0.2s; }
+  textarea:focus { border-bottom-color: #d97706; border-bottom-width: 2px; }
+  input[type="text"], input[type="email"] { width: 100%; border: none; border-bottom: 1px solid #dadce0; padding: 8px 0; font-size: 14px; font-family: inherit; outline: none; }
+  input[type="text"]:focus, input[type="email"]:focus { border-bottom-color: #d97706; border-bottom-width: 2px; }
+
+  /* Checkboxes */
+  .checkbox-group { display: flex; flex-direction: column; gap: 8px; }
+  .checkbox-item { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+  .checkbox-item input { width: 16px; height: 16px; accent-color: #d97706; }
+
+  /* Dropdown */
+  select { border: 1px solid #dadce0; border-radius: 4px; padding: 8px 12px; font-size: 14px; font-family: inherit; background: #fff; outline: none; min-width: 200px; }
+
+  /* Divider */
+  .divider { border: none; border-top: 1px solid #e8eaed; margin: 0; }
+
+  /* Feature block */
+  .feature-block { background: #fefce8; border: 1px solid #fef08a; border-radius: 6px; padding: 14px 16px; margin-bottom: 18px; }
+  .feature-block h3 { font-size: 14px; font-weight: 600; color: #854d0e; margin-bottom: 2px; }
+  .feature-block p { font-size: 12px; color: #a16207; }
+
+  /* Submit area */
+  .submit-area { margin-top: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .submit-btn { background: #d97706; color: #fff; border: none; border-radius: 4px; padding: 10px 28px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; }
+  .submit-btn:hover { background: #b45309; }
+
+  /* Setup instructions banner */
+  .setup-banner { background: #fff; border: 2px dashed #d97706; border-radius: 8px; padding: 20px 24px; margin-bottom: 16px; }
+  .setup-banner h2 { font-size: 16px; color: #d97706; margin-bottom: 8px; }
+  .setup-banner ol { padding-left: 20px; font-size: 13px; color: #5f6368; }
+  .setup-banner ol li { margin-bottom: 4px; }
+  .setup-banner code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+
+  @media (max-width: 600px) {
+    body { padding: 12px 8px; }
+    .card, .banner { padding: 18px 16px; }
+    .scale-label { min-width: 50px; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+<div class="form-container">
+
+  <!-- SETUP INSTRUCTIONS — remove this block from the Google Form -->
+  <div class="setup-banner">
+    <h2>How to build this in Google Forms</h2>
+    <ol>
+      <li>Go to <strong>forms.google.com</strong> &rarr; Blank form</li>
+      <li>Copy each section below as a <strong>Section</strong> in the form</li>
+      <li>Star (<span style="color:#d93025">*</span>) = mark as <em>Required</em></li>
+      <li>Scale questions = <strong>Linear scale</strong> (1&ndash;5)</li>
+      <li>Multi-select = <strong>Checkboxes</strong></li>
+      <li>Open text = <strong>Paragraph</strong></li>
+      <li>Go to <strong>Responses</strong> tab &rarr; green Sheets icon &rarr; <em>Create a new spreadsheet</em></li>
+      <li>Share the form link with the same people who have GitHub access</li>
+    </ol>
+  </div>
+
+  <!-- FORM START -->
+  <div class="banner">
+    <h1>VH Scheduler &mdash; Beta Feedback</h1>
+    <p>Help us shape the scheduling tool. Takes about 5 minutes. Your input directly drives what we build next.</p>
+  </div>
+
+  <!-- SECTION 1: About You -->
+  <div class="card">
+    <h2>About You</h2>
+    <div class="section-desc">So we can understand feedback by role. No wrong answers.</div>
+
+    <div class="question">
+      <div class="q-label">Your name<span class="required">*</span></div>
+      <input type="text" placeholder="Your answer">
+    </div>
+
+    <div class="question">
+      <div class="q-label">Your role<span class="required">*</span></div>
+      <select>
+        <option value="">Choose</option>
+        <option>Solar Consultant (SC)</option>
+        <option>Sr. Solar Consultant</option>
+        <option>Design Expert (DE)</option>
+        <option>Regional Sales Manager (RSM)</option>
+        <option>Inside Sales / Scheduling</option>
+        <option>Operations / Management</option>
+        <option>Other</option>
+      </select>
+    </div>
+
+    <div class="question">
+      <div class="q-label">Primary territory</div>
+      <select>
+        <option value="">Choose</option>
+        <option>CT (Connecticut)</option>
+        <option>NJ North</option>
+        <option>NJ South</option>
+        <option>PA (Pennsylvania)</option>
+        <option>NY (New York)</option>
+        <option>MA (Massachusetts)</option>
+        <option>MD (Maryland)</option>
+        <option>NH/ME (New Hampshire / Maine)</option>
+        <option>RI (Rhode Island)</option>
+        <option>Multiple / All</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- SECTION 2: Overall Impression -->
+  <div class="card">
+    <h2>Overall Impression</h2>
+    <div class="section-desc">High-level feel before we get into specifics.</div>
+
+    <div class="question">
+      <div class="q-label">How would you rate the scheduler overall?<span class="required">*</span></div>
+      <div class="scale-row">
+        <span class="scale-label">Not useful</span>
+        <div class="scale-options">
+          <div class="scale-option"><input type="radio" name="overall"><span>1</span></div>
+          <div class="scale-option"><input type="radio" name="overall"><span>2</span></div>
+          <div class="scale-option"><input type="radio" name="overall"><span>3</span></div>
+          <div class="scale-option"><input type="radio" name="overall"><span>4</span></div>
+          <div class="scale-option"><input type="radio" name="overall"><span>5</span></div>
+        </div>
+        <span class="scale-label right">Love it</span>
+      </div>
+    </div>
+
+    <div class="question">
+      <div class="q-label">How likely are you to use this instead of the current process?<span class="required">*</span></div>
+      <div class="scale-row">
+        <span class="scale-label">Won't use</span>
+        <div class="scale-options">
+          <div class="scale-option"><input type="radio" name="adopt"><span>1</span></div>
+          <div class="scale-option"><input type="radio" name="adopt"><span>2</span></div>
+          <div class="scale-option"><input type="radio" name="adopt"><span>3</span></div>
+          <div class="scale-option"><input type="radio" name="adopt"><span>4</span></div>
+          <div class="scale-option"><input type="radio" name="adopt"><span>5</span></div>
+        </div>
+        <span class="scale-label right">Definitely</span>
+      </div>
+    </div>
+
+    <div class="question">
+      <div class="q-label">What's your first impression in a sentence or two?</div>
+      <textarea rows="2" placeholder="Your answer"></textarea>
+    </div>
+  </div>
+
+  <!-- SECTION 3: Feature Scoring -->
+  <div class="card">
+    <h2>Feature Scoring</h2>
+    <div class="section-desc">Rate each feature on usefulness and ease of use. Skip any you haven't tried.</div>
+
+    <!-- Feature 1: Multi-View Scheduler -->
+    <div class="feature-block">
+      <h3>Multi-View Scheduler</h3>
+      <p>5 views: Day, Week, Open Slots, By Rep, Depth Chart. Territory filtering across all states.</p>
+    </div>
+    <div class="question">
+      <div class="q-label">Usefulness</div>
+      <div class="scale-row">
+        <span class="scale-label">Not useful</span>
+        <div class="scale-options">
+          <div class="scale-option"><input type="radio" name="mv-useful"><span>1</span></div>
+          <div class="scale-option"><input type="radio" name="mv-useful"><span>2</span></div>
+          <div class="scale-option"><input type="radio" name="mv-useful"><span>3</span></div>
+          <div class="scale-option"><input type="radio" name="mv-useful"><span>4</span></div>
+          <div class="scale-option"><input type="radio" name="mv-useful"><span>5</span></div>
+        </div>
+        <span class="scale-label right">Essential</span>
+      </div>
+    </div>
+    <div class="question">
+      <div class="q-label">Ease of use</div>
+      <div class="scale-row">
+        <span class="scale-label">Confusing</span>
+        <div class="scale-options">
+          <div class="scale-option"><input type="radio" name="mv-ease"><span>1</span></div>
+          <div class="scale-option"><input type="radio" name="mv-ease"><span>2</span></div>
+          <div class="scale-option"><input type="radio" name="mv-ease"><span>3</span></div>
+          <div class="scale-option"><input type="radio" name="mv-ease"><span>4</span></div>
+          <div class="scale-option"><input type="radio" name="mv-ease"><span>5</span></div>
+        </div>
+        <span class="scale-label right">Intuitive</span>
+      </div>
+    </div>
+    <div class="question">
+      <div class="q-label">Which views do you find most useful? (select all)</div>
+      <div class="checkbox-group">
+        <label class="checkbox-item"><input type="checkbox"> Day view</label>
+        <label class="checkbox-item"><input type="checkbox"> Week view</label>
+        <label class="checkbox-item"><input type="checkbox"> Open Slots view</label>
+        <label class="checkbox-item"><input type="checkbox"> By Rep view</label>
+        <label class="checkbox-item"><input type="checkbox"> Depth Chart view</label>
+      </div>
+    </div>
+    <div class="question">
+      <div class="q-label">Comments on scheduler views</div>
+      <textarea rows="2" placeholder="What works? What's confusing? What's missing?"></textarea>
+    </div>
+
+    <hr class="divider" style="margin: 22px 0;">
+
+    <!-- Feature 2: Slot Suggestions -->
+    <div class="feature-block">
+      <h3>Smart Slot Suggestions</h3>
+      <p>When creating an appointment, the system recommends the top 3 time slots ranked by probability of close. Considers rep skill, time-of-day show rates, and proximity.</p>
+    </div>
+    <div class="question">
+      <div class="q-label">Usefulness</div>
+      <div class="scale-row">
+        <span class="scale-label">Not useful</span>
+        <div class="scale-options">
+          <div class="scale-option"><input type="radio" name="ss-useful"><span>1</span></div>
+          <div class="scale-option"><input type="radio" name="ss-useful"><span>2</span></div>
+          <div class="scale-option"><input type="radio" name="ss-useful"><span>3</span></div>
+          <div class="scale-option"><input type="radio" name="ss-useful"><span>4</span></div>
+          <div class="scale-option"><input type="radio" name="ss-useful"><span>5</span></div>
+        </div>
+        <span class="scale-label right">Essential</span>
+      </div>
+    </div>
+    <div class="question">
+      <div class="q-label">Ease of use</div>
+      <div class="scale-row">
+        <span class="scale-label">Confusing</span>
+        <div class="scale-options">
+          <div class="scale-option"><input type="radio" name="ss-ease"><span>1</span></div>
+          <div class="scale-option"><input type="radio" name="ss-ease"><span>2</span></div>
+          <div class="scale-option"><input type="radio" name="ss-ease"><span>3</span></div>
+          <div class="scale-option"><input type="radio" name="ss-ease"><span>4</span></div>
+          <div class="scale-option"><input type="radio" name="ss-ease"><span>5</span></div>
+        </div>
+        <span class="scale-label right">Intuitive</span>
+      </div>
+    </div>
+    <div class="question">
+      <div class="q-label">Do the suggestions match your instinct for "best slot"?</div>
+      <div class="scale-row">
+        <span class="scale-label">Way off</span>
+        <div class="scale-options">
+          <div class="scale-option"><input type="radio" name="ss-accuracy"><span>1</span></div>
+          <div class="scale-option"><input type="radio" name="ss-accuracy"><span>2</span></div>
+          <div class="scale-option"><input type="radio" name="ss-accuracy"><span>3</span></div>
+          <div class="scale-option"><input type="radio" name="ss-accuracy"><span>4</span></div>
+          <div class="scale-option"><input type="radio" name="ss-accuracy"><span>5</span></div>
+        </div>
+        <span class="scale-label right">Spot on</span>
+      </div>
+    </div>
+    <div class="question">
+      <div class="q-label">Comments on suggestions</div>
+      <textarea rows="2" placeholder="Are the right reps being surfaced? Are the close % believable?"></textarea>
+    </div>
+
+    <hr class="divider" style="margin: 22px 0;">
+
+    <!-- Feature 3: Quick-Add Bar -->
+    <div class="feature-block">
+      <h3>Quick-Add Bar (Cmd+K)</h3>
+      <p>Type natural language like "Sat 2pm Sanchez 123 Oak St Norwalk CT 06851 paid" and it parses into a full appointment.</p>
+    </div>
+    <div class="question">
+      <div class="q-label">Usefulness</div>
+      <div class="scale-row">
+        <span class="scale-label">Not useful</span>
+        <div class="scale-options">
+          <div class="scale-option"><input type="radio" name="qa-useful"><span>1</span></div>
+          <div class="scale-option"><input type="radio" name="qa-useful"><span>2</span></div>
+          <div class="scale-option"><input type="radio" name="qa-useful"><span>3</span></div>
+          <div class="scale-option"><input type="radio" name="qa-useful"><span>4</span></div>
+          <div class="scale-option"><input type="radio" name="qa-useful"><span>5</span></div>
+        </div>
+        <span class="scale-label right">Essential</span>
+      </div>
+    </div>
+    <div class="question">
+      <div class="q-label">Ease of use</div>
+      <div class="scale-row">
+        <span class="scale-label">Confusing</span>
+        <div class="scale-options">
+          <div class="scale-option"><input type="radio" name="qa-ease"><span>1</span></div>
+          <div class="scale-option"><input type="radio" name="qa-ease"><span>2</span></div>
+          <div class="scale-option"><input type="radio" name="qa-ease"><span>3</span></div>
+          <div class="scale-option"><input type="radio" name="qa-ease"><span>4</span></div>
+          <div class="scale-option"><input type="radio" name="qa-ease"><span>5</span></div>
+        </div>
+        <span class="scale-label right">Intuitive</span>
+      </div>
+    </div>
+    <div class="question">
+      <div class="q-label">Comments on quick-add</div>
+      <textarea rows="2" placeholder="Did it parse your inputs correctly? What tripped it up?"></textarea>
+    </div>
+
+    <hr class="divider" style="margin: 22px 0;">
+
+    <!-- Feature 4: Drag-to-Reschedule -->
+    <div class="feature-block">
+      <h3>Drag-to-Reschedule</h3>
+      <p>Drag an appointment card to a different time slot. Shows a live preview of how the move affects close probability before you drop.</p>
+    </div>
+    <div class="question">
+      <div class="q-label">Usefulness</div>
+      <div class="scale-row">
+        <span class="scale-label">Not useful</span>
+        <div class="scale-options">
+          <div class="scale-option"><input type="radio" name="dr-useful"><span>1</span></div>
+          <div class="scale-option"><input type="radio" name="dr-useful"><span>2</span></div>
+          <div class="scale-option"><input type="radio" name="dr-useful"><span>3</span></div>
+          <div class="scale-option"><input type="radio" name="dr-useful"><span>4</span></div>
+          <div class="scale-option"><input type="radio" name="dr-useful"><span>5</span></div>
+        </div>
+        <span class="scale-label right">Essential</span>
+      </div>
+    </div>
+    <div class="question">
+      <div class="q-label">Ease of use</div>
+      <div class="scale-row">
+        <span class="scale-label">Confusing</span>
+        <div class="scale-options">
+          <div class="scale-option"><input type="radio" name="dr-ease"><span>1</span></div>
+          <div class="scale-option"><input type="radio" name="dr-ease"><span>2</span></div>
+          <div class="scale-option"><input type="radio" name="dr-ease"><span>3</span></div>
+          <div class="scale-option"><input type="radio" name="dr-ease"><span>4</span></div>
+          <div class="scale-option"><input type="radio" name="dr-ease"><span>5</span></div>
+        </div>
+        <span class="scale-label right">Intuitive</span>
+      </div>
+    </div>
+    <div class="question">
+      <div class="q-label">Is the P(close) preview helpful when deciding where to move an appointment?</div>
+      <div class="scale-row">
+        <span class="scale-label">Ignore it</span>
+        <div class="scale-options">
+          <div class="scale-option"><input type="radio" name="dr-preview"><span>1</span></div>
+          <div class="scale-option"><input type="radio" name="dr-preview"><span>2</span></div>
+          <div class="scale-option"><input type="radio" name="dr-preview"><span>3</span></div>
+          <div class="scale-option"><input type="radio" name="dr-preview"><span>4</span></div>
+          <div class="scale-option"><input type="radio" name="dr-preview"><span>5</span></div>
+        </div>
+        <span class="scale-label right">Rely on it</span>
+      </div>
+    </div>
+    <div class="question">
+      <div class="q-label">Comments on drag-to-reschedule</div>
+      <textarea rows="2" placeholder="Your answer"></textarea>
+    </div>
+
+    <hr class="divider" style="margin: 22px 0;">
+
+    <!-- Feature 5: TSRF Color Coding -->
+    <div class="feature-block">
+      <h3>TSRF Roof Quality Color Coding</h3>
+      <p>Customer cards are color-coded by Aurora TSRF score: green (Premium, 85+), lime (Strong, 75-84), amber (Fair, 65-74), red (Weak, &lt;65). Higher TSRF = sunnier roof = better lead.</p>
+    </div>
+    <div class="question">
+      <div class="q-label">Usefulness</div>
+      <div class="scale-row">
+        <span class="scale-label">Not useful</span>
+        <div class="scale-options">
+          <div class="scale-option"><input type="radio" name="tsrf-useful"><span>1</span></div>
+          <div class="scale-option"><input type="radio" name="tsrf-useful"><span>2</span></div>
+          <div class="scale-option"><input type="radio" name="tsrf-useful"><span>3</span></div>
+          <div class="scale-option"><input type="radio" name="tsrf-useful"><span>4</span></div>
+          <div class="scale-option"><input type="radio" name="tsrf-useful"><span>5</span></div>
+        </div>
+        <span class="scale-label right">Essential</span>
+      </div>
+    </div>
+    <div class="question">
+      <div class="q-label">Are the tier thresholds right? (Premium 85+, Strong 75+, Fair 65+, Weak &lt;65)</div>
+      <div class="scale-row">
+        <span class="scale-label">Way off</span>
+        <div class="scale-options">
+          <div class="scale-option"><input type="radio" name="tsrf-thresholds"><span>1</span></div>
+          <div class="scale-option"><input type="radio" name="tsrf-thresholds"><span>2</span></div>
+          <div class="scale-option"><input type="radio" name="tsrf-thresholds"><span>3</span></div>
+          <div class="scale-option"><input type="radio" name="tsrf-thresholds"><span>4</span></div>
+          <div class="scale-option"><input type="radio" name="tsrf-thresholds"><span>5</span></div>
+        </div>
+        <span class="scale-label right">Spot on</span>
+      </div>
+    </div>
+    <div class="question">
+      <div class="q-label">Comments on TSRF</div>
+      <textarea rows="2" placeholder="Should we weight it more/less? Other Aurora data points you'd want to see?"></textarea>
+    </div>
+
+    <hr class="divider" style="margin: 22px 0;">
+
+    <!-- Feature 6: Self-Service Reschedule -->
+    <div class="feature-block">
+      <h3>Customer Self-Service Reschedule</h3>
+      <p>Customers receive a link in their confirmation text/email. They can pick a new time slot themselves without calling in.</p>
+    </div>
+    <div class="question">
+      <div class="q-label">Usefulness</div>
+      <div class="scale-row">
+        <span class="scale-label">Not useful</span>
+        <div class="scale-options">
+          <div class="scale-option"><input type="radio" name="sr-useful"><span>1</span></div>
+          <div class="scale-option"><input type="radio" name="sr-useful"><span>2</span></div>
+          <div class="scale-option"><input type="radio" name="sr-useful"><span>3</span></div>
+          <div class="scale-option"><input type="radio" name="sr-useful"><span>4</span></div>
+          <div class="scale-option"><input type="radio" name="sr-useful"><span>5</span></div>
+        </div>
+        <span class="scale-label right">Essential</span>
+      </div>
+    </div>
+    <div class="question">
+      <div class="q-label">Comments on self-service reschedule</div>
+      <textarea rows="2" placeholder="Concerns about customers rescheduling freely? Limits you'd want?"></textarea>
+    </div>
+
+    <hr class="divider" style="margin: 22px 0;">
+
+    <!-- Feature 7: PWA -->
+    <div class="feature-block">
+      <h3>Add to Home Screen (PWA)</h3>
+      <p>Install the scheduler as an app on your phone from Safari or Chrome. Works offline for navigation.</p>
+    </div>
+    <div class="question">
+      <div class="q-label">Usefulness</div>
+      <div class="scale-row">
+        <span class="scale-label">Not useful</span>
+        <div class="scale-options">
+          <div class="scale-option"><input type="radio" name="pwa-useful"><span>1</span></div>
+          <div class="scale-option"><input type="radio" name="pwa-useful"><span>2</span></div>
+          <div class="scale-option"><input type="radio" name="pwa-useful"><span>3</span></div>
+          <div class="scale-option"><input type="radio" name="pwa-useful"><span>4</span></div>
+          <div class="scale-option"><input type="radio" name="pwa-useful"><span>5</span></div>
+        </div>
+        <span class="scale-label right">Essential</span>
+      </div>
+    </div>
+    <div class="question">
+      <div class="q-label">Would you prefer a native app from the App Store instead?</div>
+      <select>
+        <option value="">Choose</option>
+        <option>PWA is fine</option>
+        <option>I'd prefer a native app</option>
+        <option>No preference</option>
+        <option>Not sure what the difference is</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- SECTION 4: Prioritize What's Next -->
+  <div class="card">
+    <h2>Prioritize What's Next</h2>
+    <div class="section-desc">We're deciding what to build next. Check the items that matter most to you.</div>
+
+    <div class="question">
+      <div class="q-label">Which upcoming features would help you most? (select all that apply)<span class="required">*</span></div>
+      <div class="checkbox-group">
+        <label class="checkbox-item"><input type="checkbox"> Month view</label>
+        <label class="checkbox-item"><input type="checkbox"> Swimlane view (by status pipeline)</label>
+        <label class="checkbox-item"><input type="checkbox"> By State / By Sales Team views</label>
+        <label class="checkbox-item"><input type="checkbox"> "Assign Best Rep" button on existing appointments</label>
+        <label class="checkbox-item"><input type="checkbox"> Real Salesforce data (replace mock data with live SFDC)</label>
+        <label class="checkbox-item"><input type="checkbox"> SMS/email confirmations + reminders (live, not mock)</label>
+        <label class="checkbox-item"><input type="checkbox"> Google Calendar sync</label>
+        <label class="checkbox-item"><input type="checkbox"> Route optimization / drive time awareness</label>
+        <label class="checkbox-item"><input type="checkbox"> Mobile layout polish</label>
+        <label class="checkbox-item"><input type="checkbox"> External partner booking (Greenwatt, Verse, SunLink, etc.)</label>
+      </div>
+    </div>
+
+    <div class="question">
+      <div class="q-label">If you could only have ONE of those tomorrow, which one?</div>
+      <textarea rows="1" placeholder="Your answer"></textarea>
+    </div>
+  </div>
+
+  <!-- SECTION 5: Ideas & Open Feedback -->
+  <div class="card">
+    <h2>Ideas &amp; Open Feedback</h2>
+    <div class="section-desc">Anything else on your mind. No idea is too small or too wild.</div>
+
+    <div class="question">
+      <div class="q-label">What's the biggest pain point in your current scheduling workflow that this tool doesn't solve yet?</div>
+      <textarea rows="3" placeholder="Your answer"></textarea>
+    </div>
+
+    <div class="question">
+      <div class="q-label">Feature ideas or wishlist items</div>
+      <textarea rows="3" placeholder="Anything you'd love to see — integration, view, automation, alert, etc."></textarea>
+    </div>
+
+    <div class="question">
+      <div class="q-label">Anything broken or buggy?</div>
+      <textarea rows="2" placeholder="What happened, what you expected, and what view you were on"></textarea>
+    </div>
+
+    <div class="question">
+      <div class="q-label">Other comments</div>
+      <textarea rows="2" placeholder="Your answer"></textarea>
+    </div>
+  </div>
+
+  <div class="submit-area">
+    <span style="font-size: 12px; color: #5f6368;">This preview is for reference &mdash; build the real form in Google Forms.</span>
+    <button class="submit-btn" onclick="alert('This is a preview! Build the real form in Google Forms and link to Sheets for collection.')">Submit</button>
+  </div>
+
+</div>
+</body>
+</html>
