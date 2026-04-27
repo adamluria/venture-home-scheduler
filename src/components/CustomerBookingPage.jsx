@@ -102,7 +102,17 @@ export default function CustomerBookingPage({ onSubmit, onBack }) {
           margin: '0 0 8px 0',
           color: lightText,
         }}>
-          Venture Home Solar
+          <img
+            src="/logo-black.jpg"
+            alt="Venture Home"
+            style={{
+              height: isMobile ? '48px' : '60px',
+              marginBottom: '8px',
+              display: 'block',
+              objectFit: 'contain',
+            }}
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
         </h1>
         <p style={{
           fontSize: '14px',
