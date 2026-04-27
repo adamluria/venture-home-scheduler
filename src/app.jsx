@@ -16,6 +16,10 @@ import ForecastPanel from './components/ForecastPanel.jsx';
 import AvailableSlotsView from './components/AvailableSlotsView.jsx';
 import RepView from './components/RepView.jsx';
 import DepthChartView from './components/DepthChartView.jsx';
+import MonthView from './components/MonthView.jsx';
+import SwimlaneView from './components/SwimlaneView.jsx';
+import StateView from './components/StateView.jsx';
+import TeamView from './components/TeamView.jsx';
 import Toast from './components/Toast.jsx';
 import QuickAddBar from './components/QuickAddBar.jsx';
 import ReschedulePage from './components/ReschedulePage.jsx';
@@ -52,6 +56,26 @@ export default function App() {
     }
   }
 
+  // Salesforce deep-link: #/schedule?opp=OPPID&name=...&address=...&zip=...&tsrf=...&source=...
+  // Launched from a custom button on the SFDC Opportunity page
+  const scheduleMatch = hash.match(/^#\/schedule\?(.+)$/);
+  if (scheduleMatch) {
+    const params = new URLSearchParams(scheduleMatch[1]);
+    return (
+      <Dashboard
+        sfdcDefaults={{
+          customer: params.get('name') || '',
+          address: params.get('address') || '',
+          zipCode: params.get('zip') || '',
+          tsrf: params.get('tsrf') ? Number(params.get('tsrf')) : null,
+          leadSource: params.get('source') || 'paid',
+          sfdcOppId: params.get('opp') || '',
+          autoOpen: true,
+        }}
+      />
+    );
+  }
+
   // Customer-facing reschedule route: #/reschedule/:token
   const rescheduleMatch = hash.match(/^#\/reschedule\/([^/]+)$/);
   if (rescheduleMatch) {
@@ -75,7 +99,7 @@ export default function App() {
   return <Dashboard />;
 }
 
-function Dashboard() {
+function Dashboard({ sfdcDefaults } = {}) {
   const today = getTodayString();
   const isMobile = useIsMobile();
 
@@ -89,6 +113,14 @@ function Dashboard() {
   const [sidebarTab, setSidebarTab] = useState('forecast'); // forecast | insights | partners
   const [toast, setToast] = useState(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Auto-open modal if arriving from Salesforce deep-link
+  useEffect(() => {
+    if (sfdcDefaults?.autoOpen) {
+      setModalDefaults(sfdcDefaults);
+      setShowNewModal(true);
+    }
+  }, []);
   const [, forceRefresh] = useState(0);
   const refresh = () => forceRefresh(n => n + 1);
 
@@ -176,7 +208,11 @@ function Dashboard() {
 
   const weekRangeLabel = `${formatDateDisplay(weekDates[0])} — ${formatDateDisplay(weekDates[6])}`;
   const navLabel = viewMode === 'day' ? formatDateFull(currentDate)
+                 : viewMode === 'month' ? new Date(currentDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
                  : viewMode === 'depth' ? 'All Reps'
+                 : viewMode === 'swimlane' ? `Pipeline — ${weekRangeLabel}`
+                 : viewMode === 'state' ? `By State — ${weekRangeLabel}`
+                 : viewMode === 'team' ? `By Team — ${weekRangeLabel}`
                  : weekRangeLabel;
 
   // Stats
@@ -381,6 +417,34 @@ function Dashboard() {
           {viewMode === 'depth' && (
             <DepthChartView selectedRegions={selectedRegions} />
           )}
+          {viewMode === 'month' && (
+            <MonthView
+              currentDate={currentDate}
+              selectedRegions={selectedRegions}
+              onSelectDate={(date) => { setCurrentDate(date); setViewMode('day'); }}
+            />
+          )}
+          {viewMode === 'swimlane' && (
+            <SwimlaneView
+              weekDates={weekDates}
+              selectedRegions={selectedRegions}
+              onSelectAppointment={setSelectedAppointment}
+            />
+          )}
+          {viewMode === 'state' && (
+            <StateView
+              weekDates={weekDates}
+              selectedRegions={selectedRegions}
+              onSelectAppointment={setSelectedAppointment}
+            />
+          )}
+          {viewMode === 'team' && (
+            <TeamView
+              weekDates={weekDates}
+              selectedRegions={selectedRegions}
+              onSelectAppointment={setSelectedAppointment}
+            />
+          )}
         </div>
 
         {/* Right: Sidebar
@@ -554,6 +618,17 @@ function Dashboard() {
         <AppointmentDetail
           appointment={selectedAppointment}
           onClose={() => setSelectedAppointment(null)}
+          onReassign={(apt, newRepId) => {
+            commitAppointment({ id: apt.id, consultant: newRepId }, { isUpdate: true });
+            refresh();
+            const newRepName = getConsultantName(newRepId) || 'Unknown';
+            setToast({
+              type: 'success',
+              title: 'Rep reassigned',
+              message: `${apt.customer} → ${newRepName}`,
+            });
+            setSelectedAppointment({ ...apt, consultant: newRepId });
+          }}
         />
       )}
 

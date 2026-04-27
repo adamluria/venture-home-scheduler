@@ -1,17 +1,25 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { T, fonts } from '../data/theme.js';
+import useIsMobile from '../hooks/useIsMobile.js';
 
 export default function CalendarNav({ viewMode, onViewModeChange, onPrev, onNext, onToday, label }) {
+  const isMobile = useIsMobile();
+
   const viewOptions = [
-    { key: 'day',   label: 'Day' },
-    { key: 'week',  label: 'Week' },
-    { key: 'slots', label: 'Open Slots' },
-    { key: 'rep',   label: 'By Rep' },
-    { key: 'depth', label: 'Depth Chart' },
+    { key: 'day',   label: 'Day', mobileLabel: 'Day' },
+    { key: 'week',  label: 'Week', mobileLabel: 'Week' },
+    { key: 'month', label: 'Month', mobileLabel: 'Month' },
+    { key: 'slots', label: 'Open Slots', mobileLabel: 'Slots' },
+    { key: 'rep',   label: 'By Rep', mobileLabel: 'Rep' },
+    { key: 'depth', label: 'Depth Chart', mobileLabel: 'Depth' },
+    { key: 'swimlane', label: 'Pipeline', mobileLabel: 'Pipeline' },
+    { key: 'state', label: 'By State', mobileLabel: 'State' },
+    { key: 'team',  label: 'By Team', mobileLabel: 'Team' },
   ];
 
   return (
+    <>
     <div style={{
       display: 'flex',
       justifyContent: 'space-between',
@@ -28,9 +36,9 @@ export default function CalendarNav({ viewMode, onViewModeChange, onPrev, onNext
             background: 'transparent',
             border: `1px solid ${T.border}`,
             borderRadius: '6px',
-            padding: '6px 14px',
+            padding: isMobile ? '5px 10px' : '6px 14px',
             color: T.text,
-            fontSize: '13px',
+            fontSize: isMobile ? '12px' : '13px',
             cursor: 'pointer',
             fontFamily: fonts.ui,
           }}
@@ -44,14 +52,14 @@ export default function CalendarNav({ viewMode, onViewModeChange, onPrev, onNext
             background: 'transparent',
             border: `1px solid ${T.border}`,
             borderRadius: '6px',
-            padding: '6px 8px',
+            padding: isMobile ? '5px 6px' : '6px 8px',
             color: T.muted,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
           }}
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={isMobile ? 14 : 16} />
         </button>
 
         <button
@@ -60,18 +68,18 @@ export default function CalendarNav({ viewMode, onViewModeChange, onPrev, onNext
             background: 'transparent',
             border: `1px solid ${T.border}`,
             borderRadius: '6px',
-            padding: '6px 8px',
+            padding: isMobile ? '5px 6px' : '6px 8px',
             color: T.muted,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
           }}
         >
-          <ChevronRight size={16} />
+          <ChevronRight size={isMobile ? 14 : 16} />
         </button>
 
         <span style={{
-          fontSize: '16px',
+          fontSize: isMobile ? '14px' : '16px',
           fontWeight: '500',
           color: T.text,
           fontFamily: fonts.ui,
@@ -87,27 +95,42 @@ export default function CalendarNav({ viewMode, onViewModeChange, onPrev, onNext
         background: T.bg,
         borderRadius: '6px',
         border: `1px solid ${T.border}`,
-        overflow: 'hidden',
-      }}>
+        overflow: isMobile ? 'auto' : 'hidden',
+        overflowY: 'hidden',
+        WebkitOverflowScrolling: isMobile ? 'touch' : 'auto',
+        scrollbarWidth: isMobile ? 'none' : 'auto',
+        flexWrap: isMobile ? 'nowrap' : 'nowrap',
+      }}
+      className={isMobile ? 'hide-scrollbar' : ''}
+      >
         {viewOptions.map(opt => (
           <button
             key={opt.key}
             onClick={() => onViewModeChange(opt.key)}
             style={{
-              padding: '6px 16px',
+              padding: isMobile ? '6px 10px' : '6px 16px',
               border: 'none',
               background: viewMode === opt.key ? T.accent : 'transparent',
               color: viewMode === opt.key ? T.bg : T.muted,
-              fontSize: '13px',
+              fontSize: isMobile ? '11px' : '13px',
               fontWeight: '500',
               cursor: 'pointer',
               fontFamily: fonts.ui,
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
           >
-            {opt.label}
+            {isMobile ? opt.mobileLabel : opt.label}
           </button>
         ))}
       </div>
     </div>
+
+    <style>{`
+      .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+    `}</style>
+    </>
   );
 }

@@ -1,10 +1,13 @@
-import React from 'react';
-import { X, MapPin, Users, Clock, Video, Phone, Mail, Tag, Sun } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, MapPin, Users, Clock, Video, Phone, Mail, Tag, Sun, TrendingUp, Star, ArrowRight } from 'lucide-react';
 import { T, fonts, APPOINTMENT_TYPES, APPOINTMENT_STATUSES, TERRITORIES } from '../data/theme.js';
-import { getConsultantName, getConsultant } from '../data/mockData.js';
+import { getConsultantName, getConsultant, consultants } from '../data/mockData.js';
+import { rankRepsForSlot } from '../data/slotSuggestionEngine.js';
+import { getRepOverallStats } from '../data/repPerformance.js';
 import TsrfBadge from './TsrfBadge.jsx';
+import OwnerBadge from './OwnerBadge.jsx';
 
-export default function AppointmentDetail({ appointment, onClose }) {
+export default function AppointmentDetail({ appointment, onClose, onReassign }) {
   if (!appointment) return null;
 
   const typeInfo = APPOINTMENT_TYPES[appointment.type] || {};
@@ -60,6 +63,7 @@ export default function AppointmentDetail({ appointment, onClose }) {
               </span>
             )}
             <TsrfBadge tsrf={appointment.tsrf} variant="chip" />
+            <OwnerBadge appointment={appointment} variant="chip" />
           </div>
         </div>
         <button
@@ -118,6 +122,9 @@ export default function AppointmentDetail({ appointment, onClose }) {
           )}
         </Section>
 
+        {/* Best Rep recommendation */}
+        <BestRepPanel appointment={appointment} onReassign={onReassign} />
+
         {/* Google Meet link for virtual appointments */}
         {appointment.isVirtual && (
           <Section title="Virtual Meeting">
@@ -158,6 +165,17 @@ export default function AppointmentDetail({ appointment, onClose }) {
             Higher TSRF = less shade, better economics, higher close probability.
           </div>
         </Section>
+
+        {/* Property owner verification */}
+        {appointment.address && (
+          <Section title="Property Owner">
+            <OwnerBadge appointment={appointment} variant="detail" />
+            <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>
+              Source: Property records lookup. Verify the customer is the homeowner
+              before the appointment — renters cannot sign solar agreements.
+            </div>
+          </Section>
+        )}
 
         {/* Lead info */}
         <Section title="Lead Info">
@@ -205,6 +223,148 @@ function Section({ title, children }) {
         {children}
       </div>
     </div>
+  );
+}
+
+function BestRepPanel({ appointment, onReassign }) {
+  const [ranked, setRanked] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!appointment) return;
+    setLoading(true);
+    rankRepsForSlot({
+      date: appointment.date,
+      slot: appointment.time,
+      territory: appointment.territory,
+      leadSource: appointment.leadSource || 'paid',
+      customerZip: appointment.zipCode || '',
+      customerCity: '',
+      customerState: '',
+      isVirtual: appointment.isVirtual || false,
+      topN: 5,
+    }).then(results => {
+      setRanked(results);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [appointment?.id, appointment?.date, appointment?.time]);
+
+  if (loading) {
+    return (
+      <Section title="Best Rep for This Appointment">
+        <div style={{ fontSize: 12, color: T.muted, fontStyle: 'italic' }}>Analyzing reps...</div>
+      </Section>
+    );
+  }
+
+  if (!ranked || ranked.length === 0) {
+    return (
+      <Section title="Best Rep for This Appointment">
+        <div style={{ fontSize: 12, color: T.muted }}>No eligible reps found for this slot.</div>
+      </Section>
+    );
+  }
+
+  const currentRepId = appointment.consultant;
+  const currentRank = ranked.findIndex(r => r.repId === currentRepId);
+  const bestRep = ranked[0];
+  const isAlreadyBest = currentRepId === bestRep.repId;
+
+  return (
+    <Section title="Best Rep for This Appointment">
+      {/* Current assignment status */}
+      {isAlreadyBest ? (
+        <div style={{
+          padding: '8px 12px', borderRadius: '6px',
+          background: T.greenDim, border: `1px solid ${T.green}40`,
+          fontSize: 12, color: T.green, fontWeight: 500,
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <Star size={12} /> Current rep is the top pick for this slot
+        </div>
+      ) : (
+        <div style={{
+          padding: '8px 12px', borderRadius: '6px',
+          background: T.accentDim, border: `1px solid ${T.accent}40`,
+          fontSize: 12, color: T.accent,
+        }}>
+          A better closer is available for this slot
+          {currentRank >= 0 ? ` (current rep is #${currentRank + 1} of ${ranked.length})` : ''}
+        </div>
+      )}
+
+      {/* Ranked rep list */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+        {ranked.map((rep, i) => {
+          const isCurrent = rep.repId === currentRepId;
+          const stats = getRepOverallStats(rep.repId);
+          return (
+            <div
+              key={rep.repId}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '8px 10px', borderRadius: 6,
+                background: isCurrent ? T.surfaceHover : T.bg,
+                border: `1px solid ${i === 0 ? T.green + '40' : isCurrent ? T.accent + '40' : T.border}`,
+              }}
+            >
+              {/* Rank */}
+              <div style={{
+                width: 22, height: 22, borderRadius: '50%',
+                background: i === 0 ? T.green : i === 1 ? T.accent : T.dim,
+                color: T.bg, fontSize: 11, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: fonts.data, flexShrink: 0,
+              }}>
+                {i + 1}
+              </div>
+
+              {/* Rep info */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {rep.repName}
+                  {isCurrent && (
+                    <span style={{ fontSize: 10, color: T.muted, fontWeight: 400 }}>(current)</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: T.muted, display: 'flex', gap: 8, marginTop: 1 }}>
+                  <span style={{ fontFamily: fonts.data, color: T.green }}>
+                    {stats.closeRate}% close
+                  </span>
+                  <span style={{ fontFamily: fonts.data }}>
+                    {stats.sitRate}% sit
+                  </span>
+                  <span style={{ fontFamily: fonts.data }}>
+                    P(close) {rep.breakdown?.pClose}%
+                  </span>
+                </div>
+                {rep.reasons && rep.reasons.length > 0 && (
+                  <div style={{ fontSize: 10, color: T.dim, marginTop: 2 }}>
+                    {rep.reasons.slice(0, 2).join(' · ')}
+                  </div>
+                )}
+              </div>
+
+              {/* Assign button */}
+              {!isCurrent && onReassign && (
+                <button
+                  onClick={() => onReassign(appointment, rep.repId)}
+                  style={{
+                    background: i === 0 ? T.green : T.accent,
+                    color: T.bg, border: 'none', borderRadius: 4,
+                    padding: '5px 10px', fontSize: 11, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: fonts.ui, flexShrink: 0,
+                    display: 'flex', alignItems: 'center', gap: 3,
+                  }}
+                >
+                  <ArrowRight size={10} /> Assign
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Section>
   );
 }
 

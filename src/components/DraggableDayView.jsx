@@ -6,6 +6,7 @@ import { getSlotAvailability } from '../data/calendarService.js';
 import { scoreRepSlot } from '../data/slotSuggestionEngine.js';
 import { getTsrfTier } from '../data/tsrf.js';
 import TsrfBadge from './TsrfBadge.jsx';
+import OwnerBadge from './OwnerBadge.jsx';
 
 /**
  * Day view with HTML5 drag-and-drop for rescheduling appointments.
@@ -141,7 +142,9 @@ export default function DraggableDayView({
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {TIME_SLOTS.map(slot => {
-          const slotAppointments = appointments.filter(a => a.time === slot);
+          const slotAppointments = appointments
+            .filter(a => a.time === slot)
+            .sort((a, b) => (b.tsrf ?? -1) - (a.tsrf ?? -1)); // sunnier roofs first
           const summary = getSlotSummary(slot);
           const isHoveredDrop = dragging && hoverSlot === slot && slot !== dragging.time;
 
@@ -310,6 +313,7 @@ function DefaultCard({ appointment }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 14, fontWeight: 500 }}>{appointment.customer}</span>
           <TsrfBadge tsrf={appointment.tsrf} variant="compact" />
+          <OwnerBadge appointment={appointment} variant="dot" />
         </div>
         <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>
           {consultantName || 'Unassigned'}
