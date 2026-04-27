@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Calendar, MapPin, Users, Zap, Plus, TrendingUp, TrendingDown, AlertTriangle, Link as LinkIcon, BarChart3, Search, Printer, Undo2 } from 'lucide-react';
+import { Calendar, MapPin, Users, Zap, Plus, TrendingUp, TrendingDown, AlertTriangle, Link as LinkIcon, BarChart3, Search, Printer, Undo2, HelpCircle } from 'lucide-react';
 import { T, fonts, TERRITORIES } from './data/theme.js';
 import { mockAppointments, getAppointmentsForDate, getRegionStats, getTodayString, formatDateDisplay, formatDateFull, getWeekStart, getWeekDates, getConsultantName } from './data/mockData.js';
 import { getPartnerBySlug } from './data/partners.js';
@@ -11,6 +11,7 @@ import TerritoryFilter from './components/TerritoryFilter.jsx';
 import AppointmentDetail from './components/AppointmentDetail.jsx';
 import NewAppointmentModal from './components/NewAppointmentModal.jsx';
 import BookingPage from './components/BookingPage.jsx';
+import PartnerBookingPage from './components/PartnerBookingPage.jsx';
 import PartnerLinks from './components/PartnerLinks.jsx';
 import ForecastPanel from './components/ForecastPanel.jsx';
 import AvailableSlotsView from './components/AvailableSlotsView.jsx';
@@ -29,6 +30,7 @@ import CancelReasonModal from './components/CancelReasonModal.jsx';
 import { BulkActions, RepIsOutButton } from './components/BulkActions.jsx';
 import { PrintButton } from './components/PrintView.jsx';
 import CustomerBookingPage from './components/CustomerBookingPage.jsx';
+import HelpPanel from './components/HelpPanel.jsx';
 import useIsMobile from './hooks/useIsMobile.js';
 import { forecastAllTerritories, predictSitRate, getSitRateTrend, RAW_DATA } from './data/forecastEngine.js';
 import { sendConfirmation, scheduleReminders } from './data/notificationService.js';
@@ -73,17 +75,31 @@ export default function App() {
     const partner = getPartnerBySlug(bookingMatch[1]);
     if (partner) {
       return (
-        <BookingPage
+        <PartnerBookingPage
           partner={partner}
-          onSubmit={(data) => console.log('Booking submitted:', data)}
+          onSubmit={(data) => {
+            const apt = {
+              id: `a-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+              status: 'scheduled', type: 'appointment', isPlaceholder: false,
+              isVirtual: false, ...data,
+            };
+            mockAppointments.push(apt);
+            // Fire-and-forget SFDC sync
+            fetch('/api/sfdc/appointment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(apt),
+            }).catch(() => {});
+          }}
           onBack={() => { window.location.hash = ''; }}
         />
       );
     }
   }
 
-  // Salesforce deep-link: #/schedule?opp=OPPID&name=...&address=...&zip=...&tsrf=...&source=...
-  // Launched from a custom button on the SFDC Opportunity page
+  // Salesforce deep-link from Opportunity: #/schedule?opp=OPPID&name=...&address=...&zip=...&tsrf=...&source=...
+  // Salesforce deep-link from Lead:        #/schedule?lead=LEADID&name=...&phone=...&email=...&address=...&zip=...&source=...
+  // Launched from custom buttons on the SFDC Opportunity or Lead page
   const scheduleMatch = hash.match(/^#\/schedule\?(.+)$/);
   if (scheduleMatch) {
     const params = new URLSearchParams(scheduleMatch[1]);
@@ -93,9 +109,12 @@ export default function App() {
           customer: params.get('name') || '',
           address: params.get('address') || '',
           zipCode: params.get('zip') || '',
+          phone: params.get('phone') || '',
+          email: params.get('email') || '',
           tsrf: params.get('tsrf') ? Number(params.get('tsrf')) : null,
           leadSource: params.get('source') || 'paid',
           sfdcOppId: params.get('opp') || '',
+          sfdcLeadId: params.get('lead') || '',
           autoOpen: true,
         }}
       />
@@ -140,6 +159,7 @@ function Dashboard({ sfdcDefaults } = {}) {
   const [toast, setToast] = useState(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [cancelTarget, setCancelTarget] = useState(null); // appointment to cancel/no-show
   const [selectedBulk, setSelectedBulk] = useState([]); // multi-select for bulk ops
 
@@ -207,6 +227,58 @@ function Dashboard({ sfdcDefaults } = {}) {
     return data;
   };
 
+  // Sync appointment to Salesforce Appointment__c (fire-and-forget)
+  const syncAppointmentToSFDC = async (apt, isUpdate = false) => {
+    try {
+      if (isUpdate && apt.sfdcAppointmentId) {
+        // Update existing SFDC record
+        const updateFields = {};
+        if (apt.date) updateFields.Scheduled_Date__c = apt.date;
+        if (apt.time) updateFields.Scheduled_Time__c = apt.time;
+        if (apt.status) updateFields.Status__c = apt.status;
+        if (apt.consultant) updateFields.Assigned_Consultant__c = apt.consultant;
+        if (apt.cancelReason) updateFields.Cancel_Reason__c = apt.cancelReason;
+        await fetch(`/api/sfdc/appointment/${apt.sfdcAppointmentId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updateFields),
+        });
+      } else if (!isUpdate) {
+        // If booking from a Lead, auto-convert to Opportunity first
+        if (apt.sfdcLeadId && !apt.sfdcOppId) {
+          try {
+            const convertRes = await fetch(`/api/sfdc/lead/${apt.sfdcLeadId}/convert`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ convertedStatus: 'Qualified' }),
+            });
+            if (convertRes.ok) {
+              const result = await convertRes.json();
+              apt.sfdcOppId = result.opportunityId || '';
+              // Update the local record with the new Opp ID
+              const idx = mockAppointments.findIndex(a => a.id === apt.id);
+              if (idx >= 0) mockAppointments[idx].sfdcOppId = apt.sfdcOppId;
+            }
+          } catch (e) { console.warn('Lead convert failed (non-blocking):', e); }
+        }
+        // Create new SFDC Appointment__c record
+        const res = await fetch('/api/sfdc/appointment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(apt),
+        });
+        if (res.ok) {
+          const result = await res.json();
+          // Store the SFDC record ID back on the local appointment
+          const idx = mockAppointments.findIndex(a => a.id === apt.id);
+          if (idx >= 0) mockAppointments[idx].sfdcAppointmentId = result.sfdcAppointmentId;
+        }
+      }
+    } catch (err) {
+      console.warn('SFDC sync (non-blocking):', err.message);
+    }
+  };
+
   const handleCreateAppointment = (data) => {
     const apt = commitAppointment(data);
     refresh();
@@ -230,6 +302,8 @@ function Dashboard({ sfdcDefaults } = {}) {
     }
     sendConfirmation(apt).catch(() => {});
     scheduleReminders(apt).catch(() => {});
+    // Sync to Salesforce Appointment__c (fire-and-forget, non-blocking)
+    syncAppointmentToSFDC(apt, false);
     return apt;
   };
 
@@ -370,15 +444,27 @@ function Dashboard({ sfdcDefaults } = {}) {
         flexWrap: 'wrap',
         gap: isMobile ? '8px' : '12px',
       }}>
-        <div style={{ minWidth: 0 }}>
-          <h1 style={{ margin: '0 0 4px 0', fontSize: isMobile ? '20px' : '24px', fontWeight: '600' }}>
-            VH Solar Scheduling
-          </h1>
-          <p style={{ margin: 0, color: T.muted, fontSize: isMobile ? '12px' : '14px' }}>
-            {isMobile
-              ? `${Object.keys(TERRITORIES).length} regions`
-              : `Intelligent appointment management across ${Object.keys(TERRITORIES).length} regions`}
-          </p>
+        <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '14px' }}>
+          <img
+            src="/logo-white.png"
+            alt="Venture Home"
+            style={{
+              height: isMobile ? '28px' : '36px',
+              objectFit: 'contain',
+              flexShrink: 0,
+            }}
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+          <div>
+            <h1 style={{ margin: '0 0 2px 0', fontSize: isMobile ? '18px' : '22px', fontWeight: '600' }}>
+              Scheduling
+            </h1>
+            <p style={{ margin: 0, color: T.muted, fontSize: isMobile ? '11px' : '13px' }}>
+              {isMobile
+                ? `${Object.keys(TERRITORIES).length} regions`
+                : `Intelligent appointment management across ${Object.keys(TERRITORIES).length} regions`}
+            </p>
+          </div>
         </div>
 
         {/* On desktop: show the big primary button in the header.
@@ -394,6 +480,16 @@ function Dashboard({ sfdcDefaults } = {}) {
               }}
             >
               <Search size={14} /> Search
+            </button>
+            <button
+              onClick={() => setShowHelp(true)}
+              title="Help & Training"
+              style={{
+                background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '6px',
+                padding: '8px 12px', color: T.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: fonts.ui, fontSize: '13px',
+              }}
+            >
+              <HelpCircle size={14} /> Help
             </button>
             <PrintButton dateString={currentDate} selectedRegions={selectedRegions} />
             <RepIsOutButton
@@ -679,7 +775,21 @@ function Dashboard({ sfdcDefaults } = {}) {
           background: T.surface,
           borderTop: `1px solid ${T.border}`,
           zIndex: 900,
+          display: 'flex',
+          gap: '8px',
+          alignItems: 'center',
         }}>
+          <button
+            onClick={() => setShowHelp(true)}
+            title="Help"
+            style={{
+              background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '8px',
+              padding: '14px', color: T.muted, cursor: 'pointer', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <HelpCircle size={18} />
+          </button>
           <button
             onClick={() => setShowNewModal(true)}
             style={{
@@ -696,7 +806,7 @@ function Dashboard({ sfdcDefaults } = {}) {
               justifyContent: 'center',
               gap: '8px',
               fontFamily: fonts.ui,
-              width: '100%',
+              flex: 1,
             }}
           >
             <Plus size={18} />
@@ -802,6 +912,9 @@ function Dashboard({ sfdcDefaults } = {}) {
         weekDates={weekDates}
         selectedRegions={selectedRegions}
       />
+
+      {/* ─── Help & Training Panel ─────────────────────────── */}
+      {showHelp && <HelpPanel onClose={() => setShowHelp(false)} />}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
     </div>

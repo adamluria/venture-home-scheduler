@@ -416,6 +416,177 @@ app.get('/api/sfdc/rep-stats', async (req, res) => {
   }
 });
 
+// ─── SFDC Performance Dashboard Endpoints ──────────────────────────
+
+// GET /api/sfdc/performance/by-rep — close rate, sit rate, revenue by assigned consultant
+app.get('/api/sfdc/performance/by-rep', async (req, res) => {
+  const sfdc = app.locals.sfdc;
+  if (!sfdc?.accessToken) return res.status(401).json({ error: 'Not authenticated', code: 'NO_AUTH' });
+
+  try {
+    const months = parseInt(req.query.months) || 6;
+    const soql = `SELECT Assigned_Consultant__c rep,
+      COUNT(Id) total_appts,
+      SUM(CASE WHEN Status__c = 'Completed' THEN 1 ELSE 0 END) sits,
+      SUM(CASE WHEN Status__c = 'Closed Won' THEN 1 ELSE 0 END) closed,
+      SUM(CASE WHEN Status__c = 'Canceled' THEN 1 ELSE 0 END) canceled,
+      SUM(CASE WHEN Status__c = 'No Show' THEN 1 ELSE 0 END) no_shows
+      FROM Appointment__c
+      WHERE CreatedDate = LAST_N_MONTHS:${months}
+      AND Assigned_Consultant__c != null
+      GROUP BY Assigned_Consultant__c
+      ORDER BY Assigned_Consultant__c`;
+    const queryRes = await fetch(`${sfdc.instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(soql)}`, {
+      headers: { 'Authorization': `Bearer ${sfdc.accessToken}` },
+    });
+    const data = await queryRes.json();
+
+    // Also pull revenue from Opportunity linked to appointments
+    const revSoql = `SELECT Opportunity__r.OwnerId rep,
+      SUM(Opportunity__r.Amount) revenue,
+      COUNT(Id) deals
+      FROM Appointment__c
+      WHERE CreatedDate = LAST_N_MONTHS:${months}
+      AND Opportunity__r.StageName = 'Closed Won'
+      AND Opportunity__r.Amount != null
+      GROUP BY Opportunity__r.OwnerId`;
+    const revRes = await fetch(`${sfdc.instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(revSoql)}`, {
+      headers: { 'Authorization': `Bearer ${sfdc.accessToken}` },
+    });
+    const revData = await revRes.json();
+
+    res.json({ appointments: data.records || [], revenue: revData.records || [] });
+  } catch (err) {
+    console.error('SFDC performance/by-rep error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/sfdc/performance/by-source — metrics broken down by lead source
+app.get('/api/sfdc/performance/by-source', async (req, res) => {
+  const sfdc = app.locals.sfdc;
+  if (!sfdc?.accessToken) return res.status(401).json({ error: 'Not authenticated', code: 'NO_AUTH' });
+
+  try {
+    const months = parseInt(req.query.months) || 6;
+    const soql = `SELECT Lead_Source__c source,
+      COUNT(Id) total_appts,
+      SUM(CASE WHEN Status__c = 'Completed' THEN 1 ELSE 0 END) sits,
+      SUM(CASE WHEN Status__c = 'Closed Won' THEN 1 ELSE 0 END) closed,
+      SUM(CASE WHEN Status__c = 'Canceled' THEN 1 ELSE 0 END) canceled,
+      SUM(CASE WHEN Status__c = 'No Show' THEN 1 ELSE 0 END) no_shows
+      FROM Appointment__c
+      WHERE CreatedDate = LAST_N_MONTHS:${months}
+      AND Lead_Source__c != null
+      GROUP BY Lead_Source__c
+      ORDER BY Lead_Source__c`;
+    const queryRes = await fetch(`${sfdc.instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(soql)}`, {
+      headers: { 'Authorization': `Bearer ${sfdc.accessToken}` },
+    });
+    const data = await queryRes.json();
+    res.json({ records: data.records || [] });
+  } catch (err) {
+    console.error('SFDC performance/by-source error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/sfdc/performance/by-setter — metrics by who set/created the appointment
+app.get('/api/sfdc/performance/by-setter', async (req, res) => {
+  const sfdc = app.locals.sfdc;
+  if (!sfdc?.accessToken) return res.status(401).json({ error: 'Not authenticated', code: 'NO_AUTH' });
+
+  try {
+    const months = parseInt(req.query.months) || 6;
+    const soql = `SELECT CreatedById setter, CreatedBy.Name setter_name,
+      COUNT(Id) total_appts,
+      SUM(CASE WHEN Status__c = 'Completed' THEN 1 ELSE 0 END) sits,
+      SUM(CASE WHEN Status__c = 'Closed Won' THEN 1 ELSE 0 END) closed,
+      SUM(CASE WHEN Status__c = 'Canceled' THEN 1 ELSE 0 END) canceled,
+      SUM(CASE WHEN Status__c = 'No Show' THEN 1 ELSE 0 END) no_shows
+      FROM Appointment__c
+      WHERE CreatedDate = LAST_N_MONTHS:${months}
+      GROUP BY CreatedById, CreatedBy.Name
+      ORDER BY CreatedBy.Name`;
+    const queryRes = await fetch(`${sfdc.instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(soql)}`, {
+      headers: { 'Authorization': `Bearer ${sfdc.accessToken}` },
+    });
+    const data = await queryRes.json();
+    res.json({ records: data.records || [] });
+  } catch (err) {
+    console.error('SFDC performance/by-setter error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/sfdc/performance/by-territory — metrics by territory
+app.get('/api/sfdc/performance/by-territory', async (req, res) => {
+  const sfdc = app.locals.sfdc;
+  if (!sfdc?.accessToken) return res.status(401).json({ error: 'Not authenticated', code: 'NO_AUTH' });
+
+  try {
+    const months = parseInt(req.query.months) || 6;
+    const soql = `SELECT Territory__c territory,
+      COUNT(Id) total_appts,
+      SUM(CASE WHEN Status__c = 'Completed' THEN 1 ELSE 0 END) sits,
+      SUM(CASE WHEN Status__c = 'Closed Won' THEN 1 ELSE 0 END) closed,
+      SUM(CASE WHEN Status__c = 'Canceled' THEN 1 ELSE 0 END) canceled,
+      SUM(CASE WHEN Status__c = 'No Show' THEN 1 ELSE 0 END) no_shows
+      FROM Appointment__c
+      WHERE CreatedDate = LAST_N_MONTHS:${months}
+      AND Territory__c != null
+      GROUP BY Territory__c
+      ORDER BY Territory__c`;
+    const queryRes = await fetch(`${sfdc.instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(soql)}`, {
+      headers: { 'Authorization': `Bearer ${sfdc.accessToken}` },
+    });
+    const data = await queryRes.json();
+    res.json({ records: data.records || [] });
+  } catch (err) {
+    console.error('SFDC performance/by-territory error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/sfdc/performance/summary — top-level KPIs
+app.get('/api/sfdc/performance/summary', async (req, res) => {
+  const sfdc = app.locals.sfdc;
+  if (!sfdc?.accessToken) return res.status(401).json({ error: 'Not authenticated', code: 'NO_AUTH' });
+
+  try {
+    const months = parseInt(req.query.months) || 6;
+    const soql = `SELECT
+      COUNT(Id) total_appts,
+      SUM(CASE WHEN Status__c = 'Completed' THEN 1 ELSE 0 END) sits,
+      SUM(CASE WHEN Status__c = 'Closed Won' THEN 1 ELSE 0 END) closed,
+      SUM(CASE WHEN Status__c = 'Canceled' THEN 1 ELSE 0 END) canceled,
+      SUM(CASE WHEN Status__c = 'No Show' THEN 1 ELSE 0 END) no_shows
+      FROM Appointment__c
+      WHERE CreatedDate = LAST_N_MONTHS:${months}`;
+    const queryRes = await fetch(`${sfdc.instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(soql)}`, {
+      headers: { 'Authorization': `Bearer ${sfdc.accessToken}` },
+    });
+    const data = await queryRes.json();
+
+    // Revenue
+    const revSoql = `SELECT SUM(Amount) revenue, COUNT(Id) deals
+      FROM Opportunity WHERE StageName = 'Closed Won'
+      AND CreatedDate = LAST_N_MONTHS:${months}`;
+    const revRes = await fetch(`${sfdc.instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(revSoql)}`, {
+      headers: { 'Authorization': `Bearer ${sfdc.accessToken}` },
+    });
+    const revData = await revRes.json();
+
+    res.json({
+      appointments: data.records?.[0] || {},
+      revenue: revData.records?.[0] || {},
+    });
+  } catch (err) {
+    console.error('SFDC performance/summary error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/sfdc/opportunity/:id — get opp details for scheduling
 app.get('/api/sfdc/opportunity/:id', async (req, res) => {
   const sfdc = app.locals.sfdc;
@@ -432,6 +603,276 @@ app.get('/api/sfdc/opportunity/:id', async (req, res) => {
     const data = await queryRes.json();
     res.json(data);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Salesforce Lead Endpoints ──────────────────────────────────────
+
+// GET /api/sfdc/lead/:id — get Lead details for scheduling
+app.get('/api/sfdc/lead/:id', async (req, res) => {
+  const sfdc = app.locals.sfdc;
+  if (!sfdc?.accessToken) {
+    return res.status(401).json({ error: 'Not authenticated with Salesforce', code: 'NO_AUTH' });
+  }
+
+  try {
+    const fields = 'Id,Name,FirstName,LastName,Phone,Email,Street,PostalCode,City,State,LeadSource,Company,Status';
+    const queryRes = await fetch(
+      `${sfdc.instanceUrl}/services/data/v59.0/sobjects/Lead/${req.params.id}?fields=${fields}`,
+      { headers: { 'Authorization': `Bearer ${sfdc.accessToken}` } }
+    );
+    const data = await queryRes.json();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/sfdc/lead/:id/convert — convert Lead to Account + Contact + Opportunity
+app.post('/api/sfdc/lead/:id/convert', async (req, res) => {
+  const sfdc = app.locals.sfdc;
+  if (!sfdc?.accessToken) {
+    return res.status(401).json({ error: 'Not authenticated with Salesforce', code: 'NO_AUTH' });
+  }
+
+  try {
+    // Use Salesforce REST API composite to convert lead
+    // The convertedStatus should be the org's default converted status
+    const convertedStatus = req.body.convertedStatus || 'Qualified';
+    const payload = {
+      allOrNone: true,
+      compositeRequest: [
+        {
+          method: 'PATCH',
+          url: `/services/data/v59.0/sobjects/Lead/${req.params.id}`,
+          referenceId: 'updateLead',
+          body: { Status: convertedStatus },
+        },
+      ],
+    };
+
+    // Salesforce Lead conversion via Apex REST endpoint
+    // Orgs typically expose /services/apexrest/leadconvert or use the SOAP API
+    // We use the standard REST approach with the LeadConvert action
+    const convertRes = await fetch(
+      `${sfdc.instanceUrl}/services/data/v59.0/actions/standard/convertLead`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${sfdc.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          inputs: [{
+            leadId: req.params.id,
+            convertedStatus,
+            createOpportunity: true,
+          }],
+        }),
+      }
+    );
+    const data = await convertRes.json();
+
+    if (!convertRes.ok) {
+      console.error('Lead convert error:', data);
+      return res.status(convertRes.status).json({ error: 'Lead conversion failed', details: data });
+    }
+
+    // Return the new Opportunity ID and Account ID
+    const result = Array.isArray(data) ? data[0] : data;
+    res.json({
+      success: true,
+      leadId: req.params.id,
+      opportunityId: result.outputValues?.opportunityId || result.opportunityId,
+      accountId: result.outputValues?.accountId || result.accountId,
+      contactId: result.outputValues?.contactId || result.contactId,
+    });
+  } catch (err) {
+    console.error('Lead convert error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Salesforce Appointment__c CRUD ─────────────────────────────────
+
+// POST /api/sfdc/appointment — create Appointment__c record in Salesforce
+app.post('/api/sfdc/appointment', async (req, res) => {
+  const sfdc = app.locals.sfdc;
+  if (!sfdc?.accessToken) {
+    return res.status(401).json({ error: 'Not authenticated with Salesforce', code: 'NO_AUTH' });
+  }
+
+  try {
+    const apt = req.body;
+    const sObject = {
+      Opportunity__c: apt.sfdcOppId || null,
+      Lead__c: apt.sfdcLeadId || null,
+      Customer_Name__c: apt.customer,
+      Customer_Address__c: apt.address,
+      Customer_Zip__c: apt.zipCode,
+      Customer_Phone__c: apt.phone || null,
+      Customer_Email__c: apt.email || null,
+      Scheduled_Date__c: apt.date,
+      Scheduled_Time__c: apt.time,
+      Status__c: apt.status || 'Scheduled',
+      Type__c: apt.type || 'Appointment',
+      Assigned_Consultant__c: apt.consultant || null,
+      Assigned_Design_Expert__c: apt.designExpert || null,
+      Is_Virtual__c: apt.isVirtual || false,
+      Lead_Source__c: apt.leadSource || null,
+      Territory__c: apt.territory || null,
+      TSRF__c: apt.tsrf || null,
+      External_Id__c: apt.id, // our internal appointment ID for dedup
+    };
+
+    const createRes = await fetch(
+      `${sfdc.instanceUrl}/services/data/v59.0/sobjects/Appointment__c`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${sfdc.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(sObject),
+      }
+    );
+    const data = await createRes.json();
+
+    if (!createRes.ok) {
+      console.error('SFDC Appointment create error:', data);
+      return res.status(createRes.status).json({ error: 'Failed to create Appointment__c', details: data });
+    }
+
+    res.json({ success: true, sfdcAppointmentId: data.id });
+  } catch (err) {
+    console.error('SFDC Appointment create error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/sfdc/appointment/:id — update Appointment__c record
+app.patch('/api/sfdc/appointment/:id', async (req, res) => {
+  const sfdc = app.locals.sfdc;
+  if (!sfdc?.accessToken) {
+    return res.status(401).json({ error: 'Not authenticated with Salesforce', code: 'NO_AUTH' });
+  }
+
+  try {
+    const updates = req.body; // field-value pairs to update
+    const updateRes = await fetch(
+      `${sfdc.instanceUrl}/services/data/v59.0/sobjects/Appointment__c/${req.params.id}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${sfdc.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      }
+    );
+
+    if (updateRes.status === 204) {
+      return res.json({ success: true });
+    }
+
+    const data = await updateRes.json();
+    if (!updateRes.ok) {
+      return res.status(updateRes.status).json({ error: 'Failed to update Appointment__c', details: data });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/sfdc/appointment/:id — cancel/delete Appointment__c record
+app.delete('/api/sfdc/appointment/:id', async (req, res) => {
+  const sfdc = app.locals.sfdc;
+  if (!sfdc?.accessToken) {
+    return res.status(401).json({ error: 'Not authenticated with Salesforce', code: 'NO_AUTH' });
+  }
+
+  try {
+    // Soft-delete: update status to Canceled rather than hard delete
+    const updateRes = await fetch(
+      `${sfdc.instanceUrl}/services/data/v59.0/sobjects/Appointment__c/${req.params.id}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${sfdc.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ Status__c: 'Canceled' }),
+      }
+    );
+
+    if (updateRes.status === 204) {
+      return res.json({ success: true });
+    }
+
+    const data = await updateRes.json();
+    if (!updateRes.ok) {
+      return res.status(updateRes.status).json({ error: 'Failed to cancel Appointment__c', details: data });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/sfdc/search?phone=...&email=... — lookup Lead or Contact by phone/email
+app.get('/api/sfdc/search', async (req, res) => {
+  const sfdc = app.locals.sfdc;
+  if (!sfdc?.accessToken) {
+    return res.status(401).json({ error: 'Not authenticated with Salesforce', code: 'NO_AUTH' });
+  }
+
+  try {
+    const { phone, email } = req.query;
+    const results = { leads: [], contacts: [] };
+
+    // Search Leads
+    if (phone || email) {
+      const conditions = [];
+      if (phone) conditions.push(`Phone = '${phone.replace(/'/g, "\\'")}'`);
+      if (email) conditions.push(`Email = '${email.replace(/'/g, "\\'")}'`);
+      const where = conditions.join(' OR ');
+
+      const leadQuery = `SELECT Id, Name, Phone, Email, Street, PostalCode, City, State, LeadSource, Status FROM Lead WHERE (${where}) AND IsConverted = false ORDER BY CreatedDate DESC LIMIT 5`;
+      const leadRes = await fetch(
+        `${sfdc.instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(leadQuery)}`,
+        { headers: { 'Authorization': `Bearer ${sfdc.accessToken}` } }
+      );
+      if (leadRes.ok) {
+        const data = await leadRes.json();
+        results.leads = (data.records || []).map(r => ({
+          id: r.Id, name: r.Name, phone: r.Phone, email: r.Email,
+          address: r.Street, zip: r.PostalCode, city: r.City, state: r.State,
+          source: r.LeadSource, status: r.Status, type: 'lead',
+        }));
+      }
+
+      // Also search Contacts (which have associated Opportunities)
+      const contactQuery = `SELECT Id, Name, Phone, Email, MailingStreet, MailingPostalCode, MailingCity, MailingState, AccountId FROM Contact WHERE (${where}) ORDER BY CreatedDate DESC LIMIT 5`;
+      const contactRes = await fetch(
+        `${sfdc.instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(contactQuery)}`,
+        { headers: { 'Authorization': `Bearer ${sfdc.accessToken}` } }
+      );
+      if (contactRes.ok) {
+        const data = await contactRes.json();
+        results.contacts = (data.records || []).map(r => ({
+          id: r.Id, name: r.Name, phone: r.Phone, email: r.Email,
+          address: r.MailingStreet, zip: r.MailingPostalCode,
+          city: r.MailingCity, state: r.MailingState,
+          accountId: r.AccountId, type: 'contact',
+        }));
+      }
+    }
+
+    res.json(results);
+  } catch (err) {
+    console.error('SFDC search error:', err);
     res.status(500).json({ error: err.message });
   }
 });
