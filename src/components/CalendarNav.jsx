@@ -16,6 +16,7 @@ export default function CalendarNav({ viewMode, onViewModeChange, onPrev, onNext
     { key: 'swimlane', label: 'Pipeline', mobileLabel: 'Pipeline' },
     { key: 'state', label: 'By State', mobileLabel: 'State' },
     { key: 'team',  label: 'By Team', mobileLabel: 'Team' },
+    { key: 'analytics', label: 'Analytics', mobileLabel: 'Stats' },
   ];
 
   return (

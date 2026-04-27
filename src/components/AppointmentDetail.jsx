@@ -6,8 +6,10 @@ import { rankRepsForSlot } from '../data/slotSuggestionEngine.js';
 import { getRepOverallStats } from '../data/repPerformance.js';
 import TsrfBadge from './TsrfBadge.jsx';
 import OwnerBadge from './OwnerBadge.jsx';
+import NotesPanel from './NotesPanel.jsx';
+import AuditLogPanel from './AuditLogPanel.jsx';
 
-export default function AppointmentDetail({ appointment, onClose, onReassign }) {
+export default function AppointmentDetail({ appointment, onClose, onReassign, onCancel }) {
   if (!appointment) return null;
 
   const typeInfo = APPOINTMENT_TYPES[appointment.type] || {};
@@ -177,6 +179,16 @@ export default function AppointmentDetail({ appointment, onClose, onReassign }) 
           </Section>
         )}
 
+        {/* Notes */}
+        <Section title="Notes">
+          <NotesPanel appointmentId={appointment.id} />
+        </Section>
+
+        {/* Audit Log */}
+        <Section title="Activity Log">
+          <AuditLogPanel appointmentId={appointment.id} />
+        </Section>
+
         {/* Lead info */}
         <Section title="Lead Info">
           <DetailRow icon={<Tag size={14} />} label="Source" value={appointment.leadSource || 'Unknown'} />
@@ -191,13 +203,18 @@ export default function AppointmentDetail({ appointment, onClose, onReassign }) 
         display: 'flex',
         gap: '8px',
       }}>
-        <button style={{
-          flex: 1, padding: '10px', borderRadius: '6px',
-          background: 'transparent', border: `1px solid ${T.border}`,
-          color: T.text, fontSize: '13px', cursor: 'pointer', fontFamily: fonts.ui,
-        }}>
-          Reschedule
-        </button>
+        {onCancel && (
+          <button
+            onClick={() => onCancel(appointment)}
+            style={{
+              flex: 1, padding: '10px', borderRadius: '6px',
+              background: 'transparent', border: `1px solid rgba(248,113,113,0.4)`,
+              color: '#f87171', fontSize: '13px', cursor: 'pointer', fontFamily: fonts.ui,
+            }}
+          >
+            Cancel / No-Show
+          </button>
+        )}
         <button style={{
           flex: 1, padding: '10px', borderRadius: '6px',
           background: T.accent, border: 'none',

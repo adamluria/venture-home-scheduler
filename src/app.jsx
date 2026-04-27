@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Calendar, MapPin, Users, Zap, Plus, TrendingUp, TrendingDown, AlertTriangle, Link as LinkIcon, BarChart3 } from 'lucide-react';
+import { Calendar, MapPin, Users, Zap, Plus, TrendingUp, TrendingDown, AlertTriangle, Link as LinkIcon, BarChart3, Search, Printer, Undo2 } from 'lucide-react';
 import { T, fonts, TERRITORIES } from './data/theme.js';
 import { mockAppointments, getAppointmentsForDate, getRegionStats, getTodayString, formatDateDisplay, formatDateFull, getWeekStart, getWeekDates, getConsultantName } from './data/mockData.js';
 import { getPartnerBySlug } from './data/partners.js';
@@ -20,12 +20,21 @@ import MonthView from './components/MonthView.jsx';
 import SwimlaneView from './components/SwimlaneView.jsx';
 import StateView from './components/StateView.jsx';
 import TeamView from './components/TeamView.jsx';
+import AnalyticsView from './components/AnalyticsView.jsx';
 import Toast from './components/Toast.jsx';
 import QuickAddBar from './components/QuickAddBar.jsx';
 import ReschedulePage from './components/ReschedulePage.jsx';
+import SearchBar from './components/SearchBar.jsx';
+import CancelReasonModal from './components/CancelReasonModal.jsx';
+import { BulkActions, RepIsOutButton } from './components/BulkActions.jsx';
+import { PrintButton } from './components/PrintView.jsx';
+import CustomerBookingPage from './components/CustomerBookingPage.jsx';
 import useIsMobile from './hooks/useIsMobile.js';
 import { forecastAllTerritories, predictSitRate, getSitRateTrend, RAW_DATA } from './data/forecastEngine.js';
 import { sendConfirmation, scheduleReminders } from './data/notificationService.js';
+import { logAction } from './data/auditLog.js';
+import { pushUndo, undo, canUndo, peekUndo } from './data/undoService.js';
+import { checkBufferConflict } from './data/bufferService.js';
 
 // Simple hash-based router: #/book/greenwatt → booking page
 function useHashRoute() {
@@ -40,6 +49,23 @@ function useHashRoute() {
 
 export default function App() {
   const hash = useHashRoute();
+
+  // Public customer booking page: #/book (no slug)
+  if (hash === '#/book') {
+    return (
+      <CustomerBookingPage
+        onSubmit={(data) => {
+          mockAppointments.push({
+            id: `a-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            status: 'scheduled', type: 'appointment', isPlaceholder: false,
+            isVirtual: false, ...data,
+          });
+          window.location.hash = '';
+        }}
+        onBack={() => { window.location.hash = ''; }}
+      />
+    );
+  }
 
   // Check for booking route: #/book/:slug
   const bookingMatch = hash.match(/^#\/book\/([a-z0-9-]+)$/);
@@ -113,6 +139,39 @@ function Dashboard({ sfdcDefaults } = {}) {
   const [sidebarTab, setSidebarTab] = useState('forecast'); // forecast | insights | partners
   const [toast, setToast] = useState(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState(null); // appointment to cancel/no-show
+  const [selectedBulk, setSelectedBulk] = useState([]); // multi-select for bulk ops
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handler = (e) => {
+      // Cmd+/ or Ctrl+/ → open search
+      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+        e.preventDefault();
+        setShowSearch(v => !v);
+      }
+      // Cmd+Z → undo
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        if (canUndo() && !showNewModal && !showSearch) {
+          e.preventDefault();
+          const result = undo();
+          if (result) {
+            const { entry } = result;
+            // Restore the before state
+            const idx = mockAppointments.findIndex(a => a.id === entry.appointmentId);
+            if (idx >= 0 && entry.before) {
+              mockAppointments[idx] = { ...mockAppointments[idx], ...entry.before };
+              refresh();
+              setToast({ type: 'info', title: 'Undone', message: `Reverted: ${entry.action}` });
+            }
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [showNewModal, showSearch]);
 
   // Auto-open modal if arriving from Salesforce deep-link
   useEffect(() => {
@@ -152,18 +211,31 @@ function Dashboard({ sfdcDefaults } = {}) {
     const apt = commitAppointment(data);
     refresh();
     const repName = getConsultantName(apt.consultant) || 'Unassigned';
+    logAction({ appointmentId: apt.id, action: 'create', field: null, oldValue: null, newValue: `${apt.customer} at ${apt.time}` });
     setToast({
       type: 'success',
       title: 'Appointment scheduled',
       message: `${apt.customer} — ${formatDateFull(apt.date)} at ${apt.time} with ${repName}`,
     });
-    // Fire-and-forget notifications (mock provider logs to console)
+    // Check buffer conflicts
+    if (apt.consultant && apt.zipCode) {
+      const bufferCheck = checkBufferConflict(apt.consultant, apt.date, apt.time, apt.zipCode);
+      if (!bufferCheck.ok && bufferCheck.conflicts.length > 0) {
+        const c = bufferCheck.conflicts[0];
+        setTimeout(() => setToast({
+          type: 'warning', title: 'Travel buffer warning',
+          message: `Only ${c.gap}min gap to ${c.appointment.customer} (need ${c.required}min)`,
+        }), 2000);
+      }
+    }
     sendConfirmation(apt).catch(() => {});
     scheduleReminders(apt).catch(() => {});
     return apt;
   };
 
   const handleReschedule = (apt, { newDate, newTime, preview }) => {
+    pushUndo({ action: 'reschedule', appointmentId: apt.id, before: { date: apt.date, time: apt.time }, after: { date: newDate, time: newTime } });
+    logAction({ appointmentId: apt.id, action: 'reschedule', field: 'time', oldValue: `${apt.date} ${apt.time}`, newValue: `${newDate} ${newTime}` });
     commitAppointment({ id: apt.id, date: newDate, time: newTime }, { isUpdate: true });
     refresh();
     const repName = getConsultantName(apt.consultant) || 'Unassigned';
@@ -213,6 +285,7 @@ function Dashboard({ sfdcDefaults } = {}) {
                  : viewMode === 'swimlane' ? `Pipeline — ${weekRangeLabel}`
                  : viewMode === 'state' ? `By State — ${weekRangeLabel}`
                  : viewMode === 'team' ? `By Team — ${weekRangeLabel}`
+                 : viewMode === 'analytics' ? 'Analytics'
                  : weekRangeLabel;
 
   // Stats
@@ -311,26 +384,42 @@ function Dashboard({ sfdcDefaults } = {}) {
         {/* On desktop: show the big primary button in the header.
             On mobile: move it to a fixed bottom action bar. */}
         {!isMobile && (
-          <button
-            onClick={() => setShowNewModal(true)}
-            style={{
-              background: T.accent,
-              border: 'none',
-              borderRadius: '6px',
-              padding: '10px 20px',
-              color: T.bg,
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontFamily: fonts.ui,
-            }}
-          >
-            <Plus size={16} />
-            Smart Schedule
-          </button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button
+              onClick={() => setShowSearch(true)}
+              title="Search (Cmd+/)"
+              style={{
+                background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '6px',
+                padding: '8px 12px', color: T.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: fonts.ui, fontSize: '13px',
+              }}
+            >
+              <Search size={14} /> Search
+            </button>
+            <PrintButton dateString={currentDate} selectedRegions={selectedRegions} />
+            <RepIsOutButton
+              onReassign={(repId, date) => {
+                const repAppts = mockAppointments.filter(a => a.consultant === repId && a.date === date && !a.isPlaceholder);
+                repAppts.forEach(apt => {
+                  logAction({ appointmentId: apt.id, action: 'reassign', field: 'consultant', oldValue: repId, newValue: 'auto' });
+                });
+                refresh();
+                setToast({ type: 'success', title: 'Rep marked out', message: `${repAppts.length} appointments flagged for reassignment` });
+              }}
+              weekDates={weekDates}
+              selectedRegions={selectedRegions}
+            />
+            <button
+              onClick={() => setShowNewModal(true)}
+              style={{
+                background: T.accent, border: 'none', borderRadius: '6px',
+                padding: '10px 20px', color: T.bg, fontSize: '14px', fontWeight: '600',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: fonts.ui,
+              }}
+            >
+              <Plus size={16} />
+              Smart Schedule
+            </button>
+          </div>
         )}
       </div>
 
@@ -444,6 +533,9 @@ function Dashboard({ sfdcDefaults } = {}) {
               selectedRegions={selectedRegions}
               onSelectAppointment={setSelectedAppointment}
             />
+          )}
+          {viewMode === 'analytics' && (
+            <AnalyticsView selectedRegions={selectedRegions} />
           )}
         </div>
 
@@ -618,6 +710,10 @@ function Dashboard({ sfdcDefaults } = {}) {
         <AppointmentDetail
           appointment={selectedAppointment}
           onClose={() => setSelectedAppointment(null)}
+          onCancel={(apt) => {
+            setSelectedAppointment(null);
+            setCancelTarget(apt);
+          }}
           onReassign={(apt, newRepId) => {
             commitAppointment({ id: apt.id, consultant: newRepId }, { isUpdate: true });
             refresh();
@@ -643,6 +739,69 @@ function Dashboard({ sfdcDefaults } = {}) {
           }}
         />
       )}
+
+      {/* ─── Search Overlay ─────────────────────────────────── */}
+      {showSearch && (
+        <SearchBar
+          onSelectAppointment={(apt) => {
+            setShowSearch(false);
+            setSelectedAppointment(apt);
+          }}
+          onClose={() => setShowSearch(false)}
+        />
+      )}
+
+      {/* ─── Cancel / No-Show Modal ──────────────────────────── */}
+      {cancelTarget && (
+        <CancelReasonModal
+          appointment={cancelTarget}
+          onConfirm={({ reason, details, status }) => {
+            const prev = cancelTarget.status;
+            pushUndo({ action: status === 'no-show' ? 'no-show' : 'cancel', appointmentId: cancelTarget.id, before: { status: prev }, after: { status } });
+            logAction({ appointmentId: cancelTarget.id, action: 'status_change', field: 'status', oldValue: prev, newValue: `${status} — ${reason}${details ? ': ' + details : ''}` });
+            commitAppointment({ id: cancelTarget.id, status, cancelReason: reason, cancelDetails: details }, { isUpdate: true });
+            refresh();
+            setToast({ type: 'warning', title: status === 'no-show' ? 'No-show recorded' : 'Appointment canceled', message: `${cancelTarget.customer} — ${reason}` });
+            setCancelTarget(null);
+          }}
+          onClose={() => setCancelTarget(null)}
+        />
+      )}
+
+      {/* ─── Bulk Actions Toolbar ────────────────────────────── */}
+      <BulkActions
+        selectedAppointments={selectedBulk}
+        onClearSelection={() => setSelectedBulk([])}
+        onBulkReassign={(aptIds, newRepId) => {
+          aptIds.forEach(id => {
+            const apt = mockAppointments.find(a => a.id === id);
+            if (apt) {
+              logAction({ appointmentId: id, action: 'reassign', field: 'consultant', oldValue: apt.consultant, newValue: newRepId });
+              commitAppointment({ id, consultant: newRepId }, { isUpdate: true });
+            }
+          });
+          refresh();
+          setSelectedBulk([]);
+          setToast({ type: 'success', title: 'Bulk reassign', message: `${aptIds.length} appointments reassigned` });
+        }}
+        onBulkCancel={(aptIds) => {
+          aptIds.forEach(id => {
+            logAction({ appointmentId: id, action: 'status_change', field: 'status', oldValue: 'scheduled', newValue: 'canceled' });
+            commitAppointment({ id, status: 'canceled' }, { isUpdate: true });
+          });
+          refresh();
+          setSelectedBulk([]);
+          setToast({ type: 'warning', title: 'Bulk cancel', message: `${aptIds.length} appointments canceled` });
+        }}
+        onBulkReschedule={(aptIds) => {
+          // For now, open the first appointment in the detail drawer for manual reschedule
+          const first = mockAppointments.find(a => a.id === aptIds[0]);
+          if (first) setSelectedAppointment(first);
+          setSelectedBulk([]);
+        }}
+        weekDates={weekDates}
+        selectedRegions={selectedRegions}
+      />
 
       <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
