@@ -22,6 +22,7 @@ import SwimlaneView from './components/SwimlaneView.jsx';
 import StateView from './components/StateView.jsx';
 import TeamView from './components/TeamView.jsx';
 import AnalyticsView from './components/AnalyticsView.jsx';
+import LeaderboardView from './components/LeaderboardView.jsx';
 import Toast from './components/Toast.jsx';
 import QuickAddBar from './components/QuickAddBar.jsx';
 import ReschedulePage from './components/ReschedulePage.jsx';
@@ -37,6 +38,7 @@ import { sendConfirmation, scheduleReminders } from './data/notificationService.
 import { logAction } from './data/auditLog.js';
 import { pushUndo, undo, canUndo, peekUndo } from './data/undoService.js';
 import { checkBufferConflict } from './data/bufferService.js';
+import { sendSlackAlert } from './data/slackAlerts.js';
 
 // Simple hash-based router: #/book/greenwatt → booking page
 function useHashRoute() {
@@ -304,6 +306,11 @@ function Dashboard({ sfdcDefaults } = {}) {
     scheduleReminders(apt).catch(() => {});
     // Sync to Salesforce Appointment__c (fire-and-forget, non-blocking)
     syncAppointmentToSFDC(apt, false);
+    // Slack alert for new booking
+    sendSlackAlert('new_booking', {
+      customer: apt.customer, date: apt.date, time: apt.time,
+      leadSource: apt.leadSource, territory: apt.territory,
+    });
     return apt;
   };
 
@@ -360,6 +367,7 @@ function Dashboard({ sfdcDefaults } = {}) {
                  : viewMode === 'state' ? `By State — ${weekRangeLabel}`
                  : viewMode === 'team' ? `By Team — ${weekRangeLabel}`
                  : viewMode === 'analytics' ? 'Analytics'
+                 : viewMode === 'leaderboard' ? 'Leaderboard'
                  : weekRangeLabel;
 
   // Stats
@@ -633,6 +641,9 @@ function Dashboard({ sfdcDefaults } = {}) {
           {viewMode === 'analytics' && (
             <AnalyticsView selectedRegions={selectedRegions} />
           )}
+          {viewMode === 'leaderboard' && (
+            <LeaderboardView selectedRegions={selectedRegions} />
+          )}
         </div>
 
         {/* Right: Sidebar
@@ -872,6 +883,12 @@ function Dashboard({ sfdcDefaults } = {}) {
             commitAppointment({ id: cancelTarget.id, status, cancelReason: reason, cancelDetails: details }, { isUpdate: true });
             refresh();
             setToast({ type: 'warning', title: status === 'no-show' ? 'No-show recorded' : 'Appointment canceled', message: `${cancelTarget.customer} — ${reason}` });
+            // Fire Slack alert
+            sendSlackAlert(status === 'no-show' ? 'no_show' : 'cancel', {
+              customer: cancelTarget.customer, rep: getConsultantName(cancelTarget.consultant),
+              date: cancelTarget.date, time: cancelTarget.time, territory: cancelTarget.territory,
+              reason, note: details,
+            });
             setCancelTarget(null);
           }}
           onClose={() => setCancelTarget(null)}

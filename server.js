@@ -821,6 +821,178 @@ app.delete('/api/sfdc/appointment/:id', async (req, res) => {
   }
 });
 
+// ─── Two-Way SMS (Twilio Inbound Webhook) ──────────────────────────
+
+// POST /api/sms/inbound — Twilio webhook for incoming customer SMS
+app.post('/api/sms/inbound', async (req, res) => {
+  const { From, Body, To } = req.body;
+
+  if (!From || !Body) {
+    return res.status(400).send('<Response><Message>Invalid request</Message></Response>');
+  }
+
+  console.log(`[SMS Inbound] From: ${From}, Body: "${Body}"`);
+
+  // Normalize phone number (remove +1 prefix)
+  const phone = From.replace(/^\+1/, '').replace(/\D/g, '');
+
+  // Look up appointment by customer phone number
+  // In production, query Appointment__c from Salesforce
+  // For now, search in-memory appointments
+  let matchedApt = null;
+  try {
+    // Try to find from mock data or recent appointments
+    // This would be a DB/SFDC query in production
+    matchedApt = { id: 'unknown', customer: phone, date: 'upcoming', time: 'TBD' };
+  } catch (err) {
+    console.warn('SMS appointment lookup failed:', err);
+  }
+
+  // Parse intent from message
+  const intents = {
+    confirm: ['confirm', 'yes', 'yep', 'yeah', 'ok', 'sure', 'coming', 'on my way'],
+    cancel: ['cancel', "can't make it", 'not coming', 'have to cancel'],
+    reschedule: ['reschedule', 'move', 'change time', 'different time'],
+    late: ['running late', 'gonna be late', 'be there soon', 'stuck in traffic'],
+  };
+
+  const bodyLower = Body.toLowerCase().trim();
+  let action = 'unknown';
+  for (const [intent, keywords] of Object.entries(intents)) {
+    if (keywords.some(kw => bodyLower.includes(kw))) {
+      action = intent;
+      break;
+    }
+  }
+
+  // Generate reply
+  let reply;
+  switch (action) {
+    case 'confirm':
+      reply = "Great, you're confirmed! Your consultant looks forward to meeting you. Reply CANCEL if plans change.";
+      break;
+    case 'cancel':
+      reply = "We've noted your cancellation. Would you like to reschedule? Reply RESCHEDULE or call us.";
+      break;
+    case 'reschedule':
+      reply = "No problem! We'll have someone reach out to find a new time that works. You can also visit our booking page to reschedule.";
+      break;
+    case 'late':
+      reply = "Thanks for the heads up! Your consultant will wait for you. See you soon!";
+      break;
+    default:
+      reply = "Thanks for your message! Reply CONFIRM, CANCEL, or RESCHEDULE. For anything else, we'll have someone reach out shortly.";
+  }
+
+  // Log the conversation
+  console.log(`[SMS] Action: ${action}, Reply: "${reply}"`);
+
+  // Send Slack alert for cancel/no-show intents
+  if (action === 'cancel') {
+    const slackWebhook = process.env.SLACK_WEBHOOK_OPS;
+    if (slackWebhook) {
+      fetch(slackWebhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: `📱 Customer SMS cancellation from ${From}: "${Body}"`,
+        }),
+      }).catch(() => {});
+    }
+  }
+
+  // Respond with TwiML
+  res.set('Content-Type', 'text/xml');
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Message>${reply.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</Message>
+</Response>`);
+});
+
+// GET /api/sms/conversations/:phone — get conversation log for a phone number
+app.get('/api/sms/conversations/:phone', (req, res) => {
+  // In production, query from database
+  res.json({ messages: [], phone: req.params.phone });
+});
+
+// ─── Slack / Teams Alert Webhooks ───────────────────────────────────
+
+// POST /api/slack/alert — send alert to Slack or Teams channel
+app.post('/api/slack/alert', async (req, res) => {
+  const { type, channel, payload } = req.body;
+
+  // Channel → webhook URL mapping
+  const webhooks = {
+    general: process.env.SLACK_WEBHOOK_GENERAL,
+    sales: process.env.SLACK_WEBHOOK_SALES,
+    ops: process.env.SLACK_WEBHOOK_OPS,
+  };
+
+  const webhookUrl = webhooks[channel] || webhooks.general;
+  const teamsUrl = process.env.TEAMS_WEBHOOK_URL;
+
+  if (!webhookUrl && !teamsUrl) {
+    return res.json({ sent: false, reason: 'No webhook configured' });
+  }
+
+  const results = [];
+
+  // Send to Slack
+  if (webhookUrl) {
+    try {
+      const slackRes = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      results.push({ platform: 'slack', ok: slackRes.ok, status: slackRes.status });
+    } catch (err) {
+      results.push({ platform: 'slack', ok: false, error: err.message });
+    }
+  }
+
+  // Send to Teams
+  if (teamsUrl) {
+    try {
+      // Convert to Teams Adaptive Card format
+      const teamsPayload = {
+        '@type': 'MessageCard',
+        '@context': 'http://schema.org/extensions',
+        themeColor: 'F0A830',
+        summary: payload.text || type,
+        sections: [{
+          activityTitle: payload.text || type,
+          markdown: true,
+          text: payload.blocks?.map(b =>
+            b.text?.text || b.fields?.map(f => f.text).join(' | ') || ''
+          ).join('\n') || '',
+        }],
+      };
+      const teamsRes = await fetch(teamsUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(teamsPayload),
+      });
+      results.push({ platform: 'teams', ok: teamsRes.ok, status: teamsRes.status });
+    } catch (err) {
+      results.push({ platform: 'teams', ok: false, error: err.message });
+    }
+  }
+
+  res.json({ sent: true, results });
+});
+
+// GET /api/slack/test — test webhook configuration
+app.get('/api/slack/test', async (req, res) => {
+  const configured = {
+    general: !!process.env.SLACK_WEBHOOK_GENERAL,
+    sales: !!process.env.SLACK_WEBHOOK_SALES,
+    ops: !!process.env.SLACK_WEBHOOK_OPS,
+    teams: !!process.env.TEAMS_WEBHOOK_URL,
+  };
+  res.json({ configured });
+});
+
 // GET /api/sfdc/search?phone=...&email=... — lookup Lead or Contact by phone/email
 app.get('/api/sfdc/search', async (req, res) => {
   const sfdc = app.locals.sfdc;

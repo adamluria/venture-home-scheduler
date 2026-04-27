@@ -50,8 +50,28 @@ const USER_SECTIONS = [
     title: 'Analytics & Forecast',
     icon: <BarChart3 size={14} />,
     items: [
-      { q: 'Where are the analytics?', a: 'Switch to the Analytics view from the view selector. See close rates, sit rates, revenue pipeline, and territory heat maps.' },
+      { q: 'Where are the analytics?', a: 'Switch to the Analytics view from the view selector. See close rates, sit rates, revenue pipeline, and territory heat maps. Use the "Salesforce Live" tab to pull real performance data from SFDC.' },
       { q: 'What is the Forecast panel?', a: 'The right sidebar shows demand forecasts by territory for the next 30/60/90 days, helping you staff appropriately.' },
+      { q: 'What Salesforce performance data is available?', a: 'The SFDC tab shows metrics by rep, by lead source, by setter, and by territory. KPIs include total appointments, sit rate, close rate, no-show rate, and revenue. Filter by time range: 30 days, 3 months, 6 months, or 12 months.' },
+    ],
+  },
+  {
+    title: 'Lead Scoring',
+    icon: <Zap size={14} />,
+    items: [
+      { q: 'How does lead scoring work?', a: 'Each appointment gets a composite Lead Score (0–100) based on 8 factors: TSRF (20%), Home Value (15%), Utility Spend (15%), Owner Tenure (10%), Credit Tier (10%), Lead Source (10%), Engagement (10%), and Deal Velocity (10%). Grades: A (80+), B (65–79), C (50–64), D (35–49), F (<35).' },
+      { q: 'Where do I see lead scores?', a: 'Open any appointment detail — the Lead Score panel shows the grade badge, overall score, and a breakdown of each factor with progress bars. TSRF also still appears as its own standalone badge.' },
+      { q: 'How is the score calculated?', a: 'Each factor is scored 0–100 and weighted. TSRF comes from Aurora roof data. Home value and utility spend are estimated from zip code. Credit tier, engagement, and velocity are derived from SFDC data or appointment metadata. The composite is the weighted sum.' },
+    ],
+  },
+  {
+    title: 'Leaderboard & Gamification',
+    icon: <Users size={14} />,
+    items: [
+      { q: 'Where is the leaderboard?', a: 'Switch to the "Leaderboard" view in the view selector (top navigation). Toggle between Sales Reps and Setters using the tabs.' },
+      { q: 'What metrics are tracked?', a: 'For reps: closes, revenue, sit rate, close rate, and appointments. For setters: appointments set, sit rate, and quality score. Filter by Today, This Week, This Month, or This Quarter.' },
+      { q: 'What are badges?', a: 'Reps earn badges for achievements: 🔥 Hot Streak (3+ consecutive closes), ⭐ Perfect Week (100% sit rate), 🏆 #1 Closer, 👑 Volume King (most appointments), 📈 Comeback (improved rank), 🌟 Rising Star (new rep, top 3), 🎯 Consistent (above-avg every period).' },
+      { q: 'What is TV Dashboard mode?', a: 'Click the expand icon on the leaderboard to enter fullscreen mode — designed for office TVs. Shows the podium, rankings, and badges in a large format that auto-updates.' },
     ],
   },
   {
@@ -85,6 +105,26 @@ const ADMIN_SECTIONS = [
       { q: 'How do I add the booking button to Opportunities?', a: 'Follow the guide in docs/salesforce-button-setup.md — create a URL button on the Opportunity object that deep-links to the scheduler with pre-filled fields.' },
       { q: 'How do I add the booking button to Leads?', a: 'Follow docs/salesforce-lead-button-setup.md — same process but on the Lead object. Leads are auto-converted to Opportunities when booked.' },
       { q: 'What is the Appointment__c object?', a: 'A custom Salesforce object that mirrors appointments created in this tool. It links to the Opportunity (or converted Lead), stores status, assigned rep, date/time, and syncs automatically.' },
+    ],
+  },
+  {
+    title: 'Slack / Teams Alerts',
+    icon: <Zap size={14} />,
+    items: [
+      { q: 'What alerts are sent?', a: 'New bookings, cancellations, no-shows, closed deals, big deals, rep milestones, reassignments, and daily digests. Each alert type is routed to the appropriate channel (ops, sales, or general).' },
+      { q: 'How do I set up Slack alerts?', a: 'Set these environment variables on Cloud Run: SLACK_WEBHOOK_GENERAL (scheduling alerts), SLACK_WEBHOOK_SALES (deals/milestones), SLACK_WEBHOOK_OPS (no-shows/cancellations). Create the webhooks in your Slack workspace under Apps → Incoming Webhooks.' },
+      { q: 'How do I set up Microsoft Teams?', a: 'Set TEAMS_WEBHOOK_URL as an environment variable. Create an Incoming Webhook connector in your Teams channel. Alerts are sent as Adaptive Cards.' },
+      { q: 'Are alerts blocking?', a: 'No — all alerts are fire-and-forget. If the webhook is down, the alert fails silently and the user action still succeeds.' },
+    ],
+  },
+  {
+    title: 'Two-Way SMS',
+    icon: <Phone size={14} />,
+    items: [
+      { q: 'How does two-way SMS work?', a: 'Customers receive appointment confirmations via SMS. They can reply with natural language — "confirm", "cancel", "reschedule", "running late", or ask questions. The system parses their intent and auto-replies with the relevant info.' },
+      { q: 'How do I set up inbound SMS?', a: 'In the Twilio console, set your phone number\'s incoming message webhook to POST https://your-url/api/sms/inbound. Set TWILIO_PHONE_NUMBER as an environment variable.' },
+      { q: 'What intents are recognized?', a: 'Confirm (yes, sure, see you there), Cancel (can\'t make it, need to cancel), Reschedule (move, different time, rain check), Running Late (stuck in traffic, on the way), and Questions (where, address, parking, what time). Unknown messages get a helpful default reply.' },
+      { q: 'Are cancellations via SMS tracked?', a: 'Yes — when a customer texts to cancel, the appointment status is updated and a Slack alert is sent to the ops channel automatically.' },
     ],
   },
   {

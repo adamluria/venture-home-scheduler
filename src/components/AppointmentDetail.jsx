@@ -8,6 +8,7 @@ import TsrfBadge from './TsrfBadge.jsx';
 import OwnerBadge from './OwnerBadge.jsx';
 import NotesPanel from './NotesPanel.jsx';
 import AuditLogPanel from './AuditLogPanel.jsx';
+import { mockLeadScore } from '../data/leadScoring.js';
 
 export default function AppointmentDetail({ appointment, onClose, onReassign, onCancel }) {
   if (!appointment) return null;
@@ -179,6 +180,11 @@ export default function AppointmentDetail({ appointment, onClose, onReassign, on
           </Section>
         )}
 
+        {/* Lead Score */}
+        <Section title="Lead Score">
+          <LeadScorePanel appointment={appointment} />
+        </Section>
+
         {/* Notes */}
         <Section title="Notes">
           <NotesPanel appointmentId={appointment.id} />
@@ -222,6 +228,66 @@ export default function AppointmentDetail({ appointment, onClose, onReassign, on
         }}>
           Edit Details
         </button>
+      </div>
+    </div>
+  );
+}
+
+function LeadScorePanel({ appointment }) {
+  const result = mockLeadScore(appointment);
+  const { score, grade, color, factors } = result;
+
+  return (
+    <div>
+      {/* Score header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+        <div style={{
+          width: '48px', height: '48px', borderRadius: '10px',
+          background: `${color}20`, border: `2px solid ${color}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '20px', fontWeight: '700', fontFamily: fonts.data, color,
+        }}>
+          {grade}
+        </div>
+        <div>
+          <div style={{ fontSize: '22px', fontWeight: '700', fontFamily: fonts.data, color }}>
+            {score}
+            <span style={{ fontSize: '13px', color: T.muted, fontWeight: '400' }}> / 100</span>
+          </div>
+          <div style={{ fontSize: '11px', color: T.muted }}>
+            {score >= 85 ? 'Hot lead — prioritize this appointment' :
+             score >= 70 ? 'Strong lead — good close probability' :
+             score >= 55 ? 'Average lead — standard approach' :
+             score >= 40 ? 'Below average — may need extra prep' :
+             'Low score — verify qualification before appointment'}
+          </div>
+        </div>
+      </div>
+
+      {/* Factor breakdown */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {factors.map(f => (
+          <div key={f.name} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '110px', fontSize: '11px', color: T.muted, flexShrink: 0 }}>
+              {f.label}
+            </div>
+            <div style={{
+              flex: 1, height: '6px', background: T.border, borderRadius: '3px', overflow: 'hidden',
+            }}>
+              <div style={{
+                height: '100%', width: `${f.score}%`, borderRadius: '3px',
+                background: f.score >= 70 ? T.green : f.score >= 40 ? T.accent : T.red,
+                transition: 'width 0.3s',
+              }} />
+            </div>
+            <div style={{ width: '28px', fontSize: '11px', fontFamily: fonts.data, color: T.muted, textAlign: 'right' }}>
+              {f.score}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: '10px', color: T.dim, marginTop: '8px' }}>
+        Composite score based on: roof quality, home value, utility spend, owner tenure, credit, lead source, engagement, and deal velocity.
       </div>
     </div>
   );
