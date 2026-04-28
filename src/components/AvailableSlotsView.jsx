@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { T, fonts, TIME_SLOTS, TERRITORIES } from '../data/theme.js';
 import { consultants } from '../data/mockData.js';
-import { getSlotAvailability } from '../data/calendarService.js';
+import { getBatchSlotAvailability } from '../data/calendarService.js';
 
 /**
  * Grid view showing open-slot capacity: rows = dates, cols = time slots.
@@ -29,17 +29,22 @@ export default function AvailableSlotsView({ weekDates, selectedRegions, onSelec
     let alive = true;
     setLoading(true);
 
-    Promise.all(weekDates.map(async (date) => {
-      const avail = await getSlotAvailability(date, eligibleReps.map(r => r.id));
-      const slotCounts = {};
-      for (const slot of TIME_SLOTS) {
-        const free = eligibleReps.filter(r => avail[r.id]?.[slot]?.available).length;
-        slotCounts[slot] = { available: free, total: eligibleReps.length };
-      }
-      return [date, slotCounts];
-    })).then(entries => {
+    const repIds = eligibleReps.map(r => r.id);
+
+    // Single batched call for all 7 days instead of 7 separate calls
+    getBatchSlotAvailability(weekDates, repIds).then(batchResult => {
       if (!alive) return;
-      setGrid(Object.fromEntries(entries));
+      const newGrid = {};
+      for (const date of weekDates) {
+        const dayAvail = batchResult[date] || {};
+        const slotCounts = {};
+        for (const slot of TIME_SLOTS) {
+          const free = repIds.filter(id => dayAvail[id]?.[slot]?.available).length;
+          slotCounts[slot] = { available: free, total: repIds.length };
+        }
+        newGrid[date] = slotCounts;
+      }
+      setGrid(newGrid);
       setLoading(false);
     });
 

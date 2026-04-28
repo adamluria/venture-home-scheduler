@@ -79,7 +79,7 @@ function appointmentToGoogleEvent(apt) {
   return {
     id: `gcal_${apt.id}`,
     summary: `${typeInfo.name || 'Appointment'}: ${apt.customer}`,
-    description: `Consultant: ${consultantName}\nAddress: ${apt.address}\nType: ${typeInfo.name}\nPartner: VH Solar Scheduling`,
+    description: `Consultant: ${consultantName}\nAddress: ${apt.address}\nType: ${typeInfo.name}\nPartner: VH Scheduling`,
     start: { dateTime: startDt.toISOString(), timeZone: 'America/New_York' },
     end: { dateTime: endDt.toISOString(), timeZone: 'America/New_York' },
     location: apt.address,
@@ -103,6 +103,54 @@ function appointmentToGoogleEvent(apt) {
   };
 }
 
+// ─── Pre-built indexes for O(1) lookups ─────────────────────────────
+// Rebuilt lazily so hot paths avoid scanning full arrays every call.
+
+let _calEventIdx = null;   // { calendarId → [event, ...] }
+let _calIdToConsultant = null; // { calendarId → consultant }
+let _apptIdxVersion = 0;
+
+function getCalEventIndex() {
+  if (!_calEventIdx) {
+    _calEventIdx = {};
+    for (const e of existingCalendarEvents) {
+      (_calEventIdx[e.calendarId] ||= []).push(e);
+    }
+  }
+  return _calEventIdx;
+}
+
+function getCalIdToConsultant() {
+  if (!_calIdToConsultant) {
+    _calIdToConsultant = {};
+    for (const c of consultants) {
+      const calId = getCalendarId(c.id);
+      if (calId) _calIdToConsultant[calId] = c;
+    }
+  }
+  return _calIdToConsultant;
+}
+
+// Appointment index: { consultantId → { date → [appt, ...] } }
+let _apptIdx = null;
+
+function getApptIndex() {
+  if (!_apptIdx || _apptIdxVersion !== mockAppointments.length) {
+    _apptIdx = {};
+    for (const a of mockAppointments) {
+      if (a.isPlaceholder) continue;
+      if (a.consultant) {
+        ((_apptIdx[a.consultant] ||= {})[a.date] ||= []).push(a);
+      }
+      if (a.designExpert && a.designExpert !== a.consultant) {
+        ((_apptIdx[a.designExpert] ||= {})[a.date] ||= []).push(a);
+      }
+    }
+    _apptIdxVersion = mockAppointments.length;
+  }
+  return _apptIdx;
+}
+
 // ─── API-shaped response functions ───────────────────────────────────
 
 /**
@@ -111,45 +159,43 @@ function appointmentToGoogleEvent(apt) {
  */
 export function getMockFreeBusy(calendarIds, dateMin, dateMax) {
   const calendars = {};
+  const calEventIdx = getCalEventIndex();
+  const calIdMap = getCalIdToConsultant();
+  const apptIdx = getApptIndex();
+  const rangeStart = new Date(dateMin);
+  const rangeEnd = new Date(dateMax);
+  const dateMinDay = dateMin.split('T')[0];
+  const dateMaxDay = dateMax.split('T')[0];
 
   for (const calId of calendarIds) {
     const busyBlocks = [];
 
-    // Add existing calendar events that overlap the range
-    const existing = existingCalendarEvents.filter(e => {
-      if (e.calendarId !== calId) return false;
-      const eStart = new Date(e.start);
-      const eEnd = new Date(e.end);
-      const rangeStart = new Date(dateMin);
-      const rangeEnd = new Date(dateMax);
-      return eStart < rangeEnd && eEnd > rangeStart;
-    });
-
-    for (const e of existing) {
-      // Only mandatory events block time. Optional/tentative can be booked over.
-      if (e.isMandatory) {
-        busyBlocks.push({
-          start: new Date(e.start).toISOString(),
-          end: new Date(e.end).toISOString(),
-        });
+    // Indexed calendar events — only scan this calId's events
+    const events = calEventIdx[calId];
+    if (events) {
+      for (const e of events) {
+        if (!e.isMandatory) continue;
+        const eStart = new Date(e.start);
+        const eEnd = new Date(e.end);
+        if (eStart < rangeEnd && eEnd > rangeStart) {
+          busyBlocks.push({ start: eStart.toISOString(), end: eEnd.toISOString() });
+        }
       }
     }
 
-    // Add VH appointments as busy blocks
-    const consultant = consultants.find(c => getCalendarId(c.id) === calId);
+    // Indexed VH appointments — direct lookup by consultant + date
+    const consultant = calIdMap[calId];
     if (consultant) {
-      const appts = mockAppointments.filter(a =>
-        (a.consultant === consultant.id || a.designExpert === consultant.id) &&
-        a.date >= dateMin.split('T')[0] &&
-        a.date <= dateMax.split('T')[0] &&
-        !a.isPlaceholder
-      );
-      for (const apt of appts) {
-        const event = appointmentToGoogleEvent(apt);
-        busyBlocks.push({
-          start: event.start.dateTime,
-          end: event.end.dateTime,
-        });
+      const consultantAppts = apptIdx[consultant.id];
+      if (consultantAppts) {
+        // Walk only the dates in range
+        for (const [date, appts] of Object.entries(consultantAppts)) {
+          if (date < dateMinDay || date > dateMaxDay) continue;
+          for (const apt of appts) {
+            const event = appointmentToGoogleEvent(apt);
+            busyBlocks.push({ start: event.start.dateTime, end: event.end.dateTime });
+          }
+        }
       }
     }
 

@@ -87,6 +87,65 @@ export async function getSlotAvailability(dateString, consultantIds) {
 }
 
 /**
+ * Batch version: compute slot availability for MULTIPLE dates in a single pass.
+ * Used by AvailableSlotsView to avoid 7 separate freeBusy round-trips.
+ *
+ * @param {string[]} dates       Array of YYYY-MM-DD strings
+ * @param {string[]} consultantIds  IDs to check
+ * @returns {Object} { [date]: { [consultantId]: { [timeSlot]: { available, conflicts } } } }
+ */
+export async function getBatchSlotAvailability(dates, consultantIds) {
+  const ids = consultantIds || consultants.map(c => c.id);
+  const calendarIds = ids.map(id => getCalendarId(id)).filter(Boolean);
+
+  // Single freeBusy call spanning the full date range
+  const sortedDates = [...dates].sort();
+  const dateMin = `${sortedDates[0]}T00:00:00`;
+  const dateMax = `${sortedDates[sortedDates.length - 1]}T23:59:59`;
+
+  const freeBusy = await fetchFreeBusy(calendarIds, dateMin, dateMax);
+
+  // Pre-parse all slot times for each date (avoid re-parsing in inner loop)
+  const slotTimesPerDate = {};
+  for (const date of dates) {
+    slotTimesPerDate[date] = TIME_SLOTS.map(slot => {
+      const start = parseSlotTime(date, slot.time);
+      return { time: slot.time, start, end: new Date(start.getTime() + 90 * 60000) };
+    });
+  }
+
+  const result = {};
+
+  for (const date of dates) {
+    result[date] = {};
+    const slots = slotTimesPerDate[date];
+
+    for (const cId of ids) {
+      const calId = getCalendarId(cId);
+      const busyBlocks = freeBusy.calendars?.[calId]?.busy || [];
+
+      // Pre-parse busy blocks once per consultant (not per slot)
+      const parsedBusy = busyBlocks.map(b => ({
+        start: new Date(b.start),
+        end: new Date(b.end),
+      }));
+
+      result[date][cId] = {};
+
+      for (const slot of slots) {
+        const conflicts = parsedBusy.filter(b => b.start < slot.end && b.end > slot.start);
+        result[date][cId][slot.time] = {
+          available: conflicts.length === 0,
+          conflicts: conflicts.map(c => ({ start: c.start.toISOString(), end: c.end.toISOString() })),
+        };
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
  * For a given date and territory, returns a summary of slot availability
  * across all consultants in that territory.
  *
