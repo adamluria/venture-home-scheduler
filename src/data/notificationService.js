@@ -29,7 +29,7 @@ export function clearNotificationLog() {
 function confirmationSmsBody({ customerName, appointment, repName, rescheduleLink }) {
   const when = `${formatDateFull(appointment.date)} at ${appointment.time}`;
   return (
-    `VH Solar: Hi ${customerName || 'there'}! Your appointment is confirmed for ${when}` +
+    `Venture Home: Hi ${customerName || 'there'}! Your appointment is confirmed for ${when}` +
     (repName ? ` with ${repName}.` : '.') +
     ` Need to change it? ${rescheduleLink}  Reply STOP to opt out.`
   );
@@ -38,7 +38,7 @@ function confirmationSmsBody({ customerName, appointment, repName, rescheduleLin
 function reminderSmsBody({ customerName, appointment, repName, rescheduleLink, hoursOut }) {
   const when = `${formatDateFull(appointment.date)} at ${appointment.time}`;
   return (
-    `VH Solar reminder: ${customerName || 'there'}, we'll see you ${hoursOut <= 3 ? 'soon' : 'tomorrow'} — ${when}` +
+    `Venture Home reminder: ${customerName || 'there'}, we'll see you ${hoursOut <= 3 ? 'soon' : 'tomorrow'} — ${when}` +
     (repName ? ` with ${repName}.` : '.') +
     ` Reschedule: ${rescheduleLink}`
   );

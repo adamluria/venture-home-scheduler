@@ -377,7 +377,7 @@ function PageWrapper({ children, brandColor, partner, onBack }) {
             </button>
           )}
           <p style={{ color: T.dim, fontSize: '11px', marginTop: '12px' }}>
-            Powered by VH Solar Scheduling
+            Powered by Venture Home Scheduling
           </p>
         </div>
       </div>

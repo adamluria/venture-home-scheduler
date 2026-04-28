@@ -1,10 +1,10 @@
 // Mock data layer — mirrors the real data model shapes
 // Keep this working at all times; useMock flag switches between mock and live
-// Rep roster sourced from actual VH Solar depth map (April 2026)
+// Rep roster sourced from actual Venture Home depth map (April 2026)
 
 import { TERRITORIES } from './theme.js';
 
-// ─── Consultants — Real VH Solar Roster (51 reps) ───────────────────
+// ─── Consultants — Real Venture Home Roster (51 reps) ───────────────────
 export const consultants = [
   // ── NEW YORK WEST ──────────────────────────────────────────────────
   { id: 'nyw-rsm', name: 'Josh Rosen',          position: 'regional_sales_manager', isCloserOnly: true,  isVirtualOnly: true,  homeZip: '10009', territories: ['NYW'],              team: 'NYW',  phone: '(973) 477-8587', notes: "NO APPTS, VIRTUAL CLOSER, REF'S ONLY", languages: ['en'], isHybrid: false },

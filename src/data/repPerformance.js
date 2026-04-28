@@ -11,7 +11,7 @@ import { consultants } from './mockData.js';
 
 // ── Baseline close rates by position (applied to sits) ──────────────
 // Close rate = % of sits that result in a signed contract.
-// Numbers sourced from VH Solar 2024-2026 aggregate data.
+// Numbers sourced from Venture Home 2024-2026 aggregate data.
 const POSITION_CLOSE_RATE = {
   regional_sales_manager: 0.42,  // RSMs close virtually, high conversion on refs
   design_expert:          0.38,  // Closers — specialize in design/signing

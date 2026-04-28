@@ -103,7 +103,7 @@ export default function PrintView({ dateString, selectedRegions = [] }) {
               marginBottom: '0.1in',
             }}
           >
-            VH Solar — Daily Schedule
+            Venture Home — Daily Schedule
           </div>
           <div style={{ fontSize: '14px', color: '#333333' }}>
             {formatDate(dateString)}
@@ -269,7 +269,7 @@ export default function PrintView({ dateString, selectedRegions = [] }) {
           }}
         >
           <div>
-            Printed from VH Solar Scheduler
+            Printed from Venture Home Scheduler
           </div>
           <div>
             {now}
@@ -292,7 +292,7 @@ export function PrintButton({ dateString, selectedRegions, children = 'Print Sch
         <head>
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <title>VH Solar Daily Schedule</title>
+          <title>Venture Home Daily Schedule</title>
           <style>
             * { margin: 0; padding: 0; }
             body {
@@ -321,7 +321,7 @@ export function PrintButton({ dateString, selectedRegions, children = 'Print Sch
           </style>
         </head>
         <body>
-          <h1>VH Solar — Daily Schedule</h1>
+          <h1>Venture Home — Daily Schedule</h1>
           <div style="text-align: center; margin-bottom: 0.3in; font-size: 14px; color: #333;">
             ${new Date(dateString).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
           </div>
@@ -329,7 +329,7 @@ export function PrintButton({ dateString, selectedRegions, children = 'Print Sch
             Loading schedule data...
           </p>
           <div class="footer">
-            Printed from VH Solar Scheduler<br />
+            Printed from Venture Home Scheduler<br />
             ${new Date().toLocaleString()}
           </div>
         </body>

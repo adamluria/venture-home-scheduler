@@ -232,8 +232,8 @@ app.post('/api/notifications/send', async (req, res) => {
           personalizations: [{ to: [{ email: appointment.email }] }],
           from: { email: sgFrom, name: 'Venture Home' },
           subject: kind === 'confirmation'
-            ? 'Your Solar Consultation is Confirmed'
-            : 'Reminder: Solar Consultation Coming Up',
+            ? 'Your Venture Home Consultation is Confirmed'
+            : 'Reminder: Your Consultation is Coming Up',
           content: [{ type: 'text/html', value: emailHtml }],
         }),
       });

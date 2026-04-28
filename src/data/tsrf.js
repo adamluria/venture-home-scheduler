@@ -21,7 +21,7 @@
 //   null   Unknown   (dim)     ▸ Aurora project not yet run
 //
 // Industry rule of thumb: anything < 70 is a yellow flag; < 60 is a
-// design challenge. VH Solar historically closes ~1.4× better on
+// design challenge. Venture Home historically closes ~1.4× better on
 // TSRF >= 85 than on TSRF 65-74.
 // ═══════════════════════════════════════════════════════════════════
 

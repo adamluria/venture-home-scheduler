@@ -10,7 +10,7 @@ import { APPOINTMENT_TYPES } from './theme.js';
 export function getCalendarId(consultantId) {
   const consultant = consultants.find(c => c.id === consultantId);
   if (!consultant) return null;
-  return `${consultant.name.toLowerCase().replace(/\s+/g, '.')}@venturehomesolar.com`;
+  return `${consultant.name.toLowerCase().replace(/\s+/g, '.')}@venturehome.com`;
 }
 
 export function getCalendarIdMap() {
