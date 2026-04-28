@@ -18,6 +18,7 @@ RUN npm install --omit=dev && npm cache clean --force
 # Copy built frontend + server code
 COPY --from=build /app/dist ./dist
 COPY server.js ./
+COPY sfdcAuth.js ./
 COPY src ./src
 
 ENV NODE_ENV=production
