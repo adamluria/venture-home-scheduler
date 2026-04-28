@@ -1101,6 +1101,269 @@ app.get('/api/sfdc/search', async (req, res) => {
   }
 });
 
+// GET /api/sfdc/customer-history?phone=XXX
+//   Aggregates everything we know about a person across SF: prior Leads,
+//   Contacts, Opportunities, Tasks (call logs), Events (meetings), and Notes.
+//   Match key is phone number (last 10 digits); SOSL handles the formatting
+//   variants (parens, dashes, +1 prefix, etc).
+//
+//   Response shape:
+//     { summary: {...counts + dates}, leads, contacts, opportunities,
+//       tasks, events, notes, errors? }
+//
+//   Designed to never hard-fail: each sub-query is wrapped in try/catch and
+//   silently returns [] on permission errors, so a missing ContentNote or
+//   Note read permission doesn't kill the whole endpoint.
+app.get('/api/sfdc/customer-history', async (req, res) => {
+  const sfdc = app.locals.sfdc;
+  if (!sfdc?.accessToken) {
+    return res.status(401).json({ error: 'Not authenticated with Salesforce', code: 'NO_AUTH' });
+  }
+
+  const rawPhone = (req.query.phone || '').toString();
+  const digits = rawPhone.replace(/\D/g, '').slice(-10); // last 10 digits
+  if (digits.length < 7) {
+    return res.status(400).json({ error: 'phone parameter required (>=7 digits)' });
+  }
+
+  const headers = { Authorization: `Bearer ${sfdc.accessToken}` };
+  const errors = [];
+
+  // Helper: SOQL query with a per-call try/catch. Returns records[] or [].
+  const soql = async (q, label) => {
+    try {
+      const r = await fetch(
+        `${sfdc.instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(q)}`,
+        { headers }
+      );
+      if (!r.ok) {
+        const t = await r.text().catch(() => '');
+        errors.push({ label, status: r.status, snippet: t.slice(0, 200) });
+        return [];
+      }
+      const data = await r.json();
+      return data.records || [];
+    } catch (e) {
+      errors.push({ label, error: e.message });
+      return [];
+    }
+  };
+
+  try {
+    // ── Step 1: SOSL phone lookup → find all matching Leads + Contacts ──
+    const sosl =
+      `FIND {${digits}} IN PHONE FIELDS RETURNING ` +
+      `Lead(Id, Name, FirstName, LastName, Phone, MobilePhone, Email, ` +
+        `Status, LeadSource, CreatedDate, ConvertedDate, IsConverted, ` +
+        `Description, Company, Street, City, State, PostalCode, ` +
+        `Owner.Name LIMIT 25), ` +
+      `Contact(Id, Name, FirstName, LastName, Phone, MobilePhone, Email, ` +
+        `AccountId, Account.Name, CreatedDate, Description, ` +
+        `Owner.Name LIMIT 25)`;
+
+    const sr = await fetch(
+      `${sfdc.instanceUrl}/services/data/v59.0/search?q=${encodeURIComponent(sosl)}`,
+      { headers }
+    );
+    if (!sr.ok) {
+      const t = await sr.text().catch(() => '');
+      return res.status(502).json({
+        error: 'Salesforce SOSL phone search failed',
+        status: sr.status,
+        snippet: t.slice(0, 300),
+      });
+    }
+    const sosResults = (await sr.json()).searchRecords || [];
+
+    const leads = [];
+    const contacts = [];
+    for (const rec of sosResults) {
+      if (rec.attributes?.type === 'Lead') {
+        leads.push({
+          id: rec.Id, name: rec.Name,
+          firstName: rec.FirstName, lastName: rec.LastName,
+          phone: rec.Phone, mobilePhone: rec.MobilePhone, email: rec.Email,
+          status: rec.Status, source: rec.LeadSource,
+          createdDate: rec.CreatedDate, convertedDate: rec.ConvertedDate,
+          isConverted: rec.IsConverted,
+          description: rec.Description, company: rec.Company,
+          street: rec.Street, city: rec.City, state: rec.State, zip: rec.PostalCode,
+          ownerName: rec.Owner?.Name || null,
+        });
+      } else if (rec.attributes?.type === 'Contact') {
+        contacts.push({
+          id: rec.Id, name: rec.Name,
+          firstName: rec.FirstName, lastName: rec.LastName,
+          phone: rec.Phone, mobilePhone: rec.MobilePhone, email: rec.Email,
+          accountId: rec.AccountId, accountName: rec.Account?.Name || null,
+          createdDate: rec.CreatedDate, description: rec.Description,
+          ownerName: rec.Owner?.Name || null,
+        });
+      }
+    }
+
+    // Collect IDs we'll need for downstream queries.
+    const leadIds   = leads.map(l => `'${l.id}'`);
+    const contactIds = contacts.map(c => `'${c.id}'`);
+    const accountIds = [...new Set(contacts.map(c => c.accountId).filter(Boolean))]
+                        .map(id => `'${id}'`);
+    const personIds = [...leadIds, ...contactIds];           // Tasks/Events.WhoId
+    const recordIds = [...personIds, ...accountIds];          // Tasks/Events.WhatId, Notes.LinkedEntityId
+
+    // No matches → return empty shape early, don't burn extra queries.
+    if (recordIds.length === 0) {
+      return res.json({
+        summary: { leadCount: 0, contactCount: 0, oppCount: 0, callCount: 0, taskCount: 0, eventCount: 0, noteCount: 0, firstContact: null, lastContact: null },
+        leads: [], contacts: [], opportunities: [], tasks: [], events: [], notes: [],
+        errors: errors.length ? errors : undefined,
+      });
+    }
+
+    // ── Steps 2-6: fetch related records in parallel ────────────────────
+    const inList = (arr) => arr.length ? arr.join(',') : "''"; // empty-list-safe
+
+    const [oppRecs, taskRecs, eventRecs, cdLinkRecs] = await Promise.all([
+      // Opportunities — match by AccountId (most reliable) and recent first
+      accountIds.length
+        ? soql(
+            `SELECT Id, Name, StageName, CreatedDate, CloseDate, Amount, ` +
+            `Description, IsClosed, IsWon, AccountId, Account.Name, ` +
+            `LeadSource, Owner.Name ` +
+            `FROM Opportunity ` +
+            `WHERE AccountId IN (${inList(accountIds)}) ` +
+            `ORDER BY CreatedDate DESC LIMIT 25`,
+            'opps'
+          )
+        : Promise.resolve([]),
+
+      // Tasks — both WhoId (Lead/Contact) and WhatId (Opp/Account)
+      soql(
+        `SELECT Id, Subject, Type, ActivityDate, Description, ` +
+        `CallType, CallDurationInSeconds, CallDisposition, ` +
+        `Status, WhoId, WhatId, Owner.Name, CreatedDate ` +
+        `FROM Task ` +
+        `WHERE WhoId IN (${inList(personIds)}) ` +
+        (recordIds.length ? `OR WhatId IN (${inList(recordIds)})` : '') +
+        ` ORDER BY ActivityDate DESC NULLS LAST, CreatedDate DESC LIMIT 50`,
+        'tasks'
+      ),
+
+      // Events — meetings/calendar
+      soql(
+        `SELECT Id, Subject, ActivityDateTime, ActivityDate, Description, ` +
+        `Location, WhoId, WhatId, Owner.Name ` +
+        `FROM Event ` +
+        `WHERE WhoId IN (${inList(personIds)}) ` +
+        (recordIds.length ? `OR WhatId IN (${inList(recordIds)})` : '') +
+        ` ORDER BY ActivityDateTime DESC NULLS LAST LIMIT 25`,
+        'events'
+      ),
+
+      // ContentDocumentLinks — to find ContentNotes attached to any of these records
+      soql(
+        `SELECT ContentDocumentId, LinkedEntityId ` +
+        `FROM ContentDocumentLink ` +
+        `WHERE LinkedEntityId IN (${inList(recordIds)}) LIMIT 100`,
+        'contentLinks'
+      ),
+    ]);
+
+    // ── Step 7: fetch ContentNote details for any linked docs ──────────
+    let notes = [];
+    const contentDocIds = [...new Set(cdLinkRecs.map(l => l.ContentDocumentId).filter(Boolean))];
+    if (contentDocIds.length) {
+      const noteRecs = await soql(
+        `SELECT Id, Title, TextPreview, CreatedDate, OwnerId, Owner.Name ` +
+        `FROM ContentNote ` +
+        `WHERE Id IN (${contentDocIds.map(i => `'${i}'`).join(',')}) ` +
+        `ORDER BY CreatedDate DESC LIMIT 30`,
+        'contentNotes'
+      );
+      notes = noteRecs.map(n => ({
+        id: n.Id, title: n.Title, preview: n.TextPreview,
+        createdDate: n.CreatedDate, ownerName: n.Owner?.Name || null,
+        kind: 'content_note',
+      }));
+    }
+
+    // Also pull legacy Note (rare in modern orgs but cheap to check)
+    const legacyNotes = await soql(
+      `SELECT Id, Title, Body, CreatedDate, ParentId, Owner.Name ` +
+      `FROM Note WHERE ParentId IN (${inList(recordIds)}) ` +
+      `ORDER BY CreatedDate DESC LIMIT 20`,
+      'legacyNotes'
+    );
+    for (const n of legacyNotes) {
+      notes.push({
+        id: n.Id, title: n.Title,
+        preview: (n.Body || '').slice(0, 255),
+        createdDate: n.CreatedDate, ownerName: n.Owner?.Name || null,
+        kind: 'legacy_note',
+      });
+    }
+
+    // ── Normalize records for the frontend ──────────────────────────────
+    const opportunities = oppRecs.map(o => ({
+      id: o.Id, name: o.Name, stage: o.StageName,
+      createdDate: o.CreatedDate, closeDate: o.CloseDate,
+      amount: o.Amount, description: o.Description,
+      isClosed: o.IsClosed, isWon: o.IsWon,
+      accountId: o.AccountId, accountName: o.Account?.Name || null,
+      source: o.LeadSource, ownerName: o.Owner?.Name || null,
+    }));
+
+    const tasks = taskRecs.map(t => ({
+      id: t.Id, subject: t.Subject, type: t.Type,
+      activityDate: t.ActivityDate, createdDate: t.CreatedDate,
+      description: t.Description, status: t.Status,
+      callType: t.CallType, callDurationSeconds: t.CallDurationInSeconds,
+      callDisposition: t.CallDisposition,
+      whoId: t.WhoId, whatId: t.WhatId,
+      ownerName: t.Owner?.Name || null,
+      isCall: t.Type === 'Call' || !!t.CallDurationInSeconds || !!t.CallType,
+    }));
+
+    const events = eventRecs.map(e => ({
+      id: e.Id, subject: e.Subject,
+      activityDateTime: e.ActivityDateTime, activityDate: e.ActivityDate,
+      description: e.Description, location: e.Location,
+      whoId: e.WhoId, whatId: e.WhatId,
+      ownerName: e.Owner?.Name || null,
+    }));
+
+    // ── Summary stats ──────────────────────────────────────────────────
+    const allDates = [
+      ...leads.map(l => l.createdDate),
+      ...contacts.map(c => c.createdDate),
+      ...opportunities.map(o => o.createdDate),
+      ...tasks.map(t => t.activityDate || t.createdDate),
+      ...events.map(e => e.activityDateTime || e.activityDate),
+    ].filter(Boolean).sort();
+
+    const summary = {
+      leadCount: leads.length,
+      contactCount: contacts.length,
+      oppCount: opportunities.length,
+      callCount: tasks.filter(t => t.isCall).length,
+      taskCount: tasks.length,
+      eventCount: events.length,
+      noteCount: notes.length,
+      firstContact: allDates[0] || null,
+      lastContact: allDates[allDates.length - 1] || null,
+    };
+
+    res.json({
+      matchedDigits: digits,
+      summary,
+      leads, contacts, opportunities, tasks, events, notes,
+      ...(errors.length ? { errors } : {}),
+    });
+  } catch (err) {
+    console.error('SFDC customer-history error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Serve built frontend (production only) ──────────────────────────
 if (isProd) {
   const distPath = path.join(__dirname, 'dist');

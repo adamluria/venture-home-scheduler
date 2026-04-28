@@ -13,8 +13,9 @@
 // Dark-theme inline styles match the rest of the modal (no CSS file).
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, User, Building2, AlertCircle } from 'lucide-react';
+import { Search, User, Building2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { T, fonts } from '../data/theme.js';
+import LeadHistoryPanel from './LeadHistoryPanel.jsx';
 
 const DEBOUNCE_MS = 300;
 const MIN_CHARS = 2;
@@ -176,6 +177,7 @@ export default function LeadPicker({ onSelect }) {
 
 function ResultRow({ rec, onPick }) {
   const [hover, setHover] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const isLead = rec._kind === 'lead';
   const Icon = isLead ? User : Building2;
   const subtitle = [
@@ -184,43 +186,83 @@ function ResultRow({ rec, onPick }) {
     [rec.city, rec.state].filter(Boolean).join(', '),
   ].filter(Boolean).join(' • ');
 
+  // Phone for history lookup — prefer mobile, fall back to office
+  const historyPhone = (rec.mobilePhone || rec.phone || '').replace(/\D/g, '').slice(-10);
+  const canExpand = historyPhone.length >= 7;
+
+  const ChevronIcon = expanded ? ChevronUp : ChevronDown;
+
   return (
-    <div
-      onMouseDown={(e) => { e.preventDefault(); onPick(rec); }}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        padding: '10px 12px', cursor: 'pointer',
-        display: 'flex', alignItems: 'flex-start', gap: '10px',
-        background: hover ? T.surfaceHover : 'transparent',
-        borderBottom: `1px solid ${T.border}`,
-      }}
-    >
-      <Icon size={14} style={{ marginTop: '2px', color: isLead ? T.accent : T.muted, flexShrink: 0 }} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontSize: '14px', color: T.text, fontFamily: fonts.ui,
-          fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>
-          {rec.name || `${rec.firstName || ''} ${rec.lastName || ''}`.trim() || '(unnamed)'}
-        </div>
-        {subtitle && (
-          <div style={{
-            fontSize: '12px', color: T.muted, fontFamily: fonts.ui, marginTop: '2px',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>
-            {subtitle}
+    <div style={{ borderBottom: `1px solid ${T.border}` }}>
+      <div
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        style={{
+          display: 'flex', alignItems: 'flex-start', gap: '10px',
+          background: hover ? T.surfaceHover : 'transparent',
+        }}
+      >
+        {/* Body — clicking selects the lead (existing behavior) */}
+        <div
+          onMouseDown={(e) => { e.preventDefault(); onPick(rec); }}
+          style={{
+            flex: 1, padding: '10px 4px 10px 12px', cursor: 'pointer',
+            display: 'flex', alignItems: 'flex-start', gap: '10px', minWidth: 0,
+          }}
+        >
+          <Icon size={14} style={{ marginTop: '2px', color: isLead ? T.accent : T.muted, flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: '14px', color: T.text, fontFamily: fonts.ui,
+              fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              {rec.name || `${rec.firstName || ''} ${rec.lastName || ''}`.trim() || '(unnamed)'}
+            </div>
+            {subtitle && (
+              <div style={{
+                fontSize: '12px', color: T.muted, fontFamily: fonts.ui, marginTop: '2px',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>
+                {subtitle}
+              </div>
+            )}
           </div>
-        )}
+          <span style={{
+            fontSize: '10px', color: T.muted, fontFamily: fonts.ui,
+            background: T.bg, border: `1px solid ${T.border}`,
+            padding: '2px 6px', borderRadius: '4px', flexShrink: 0,
+            textTransform: 'uppercase', letterSpacing: '0.5px',
+            alignSelf: 'center',
+          }}>
+            {isLead ? 'Lead' : 'Contact'}
+          </span>
+        </div>
+
+        {/* Chevron — toggles inline history without selecting. Disabled if no phone. */}
+        <button
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (canExpand) setExpanded(v => !v);
+          }}
+          disabled={!canExpand}
+          title={canExpand ? (expanded ? 'Hide history' : 'Show prior interaction history') : 'No phone on file'}
+          style={{
+            background: 'transparent', border: 'none',
+            color: canExpand ? T.muted : T.border,
+            cursor: canExpand ? 'pointer' : 'not-allowed',
+            padding: '10px 12px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <ChevronIcon size={16} />
+        </button>
       </div>
-      <span style={{
-        fontSize: '10px', color: T.muted, fontFamily: fonts.ui,
-        background: T.bg, border: `1px solid ${T.border}`,
-        padding: '2px 6px', borderRadius: '4px', flexShrink: 0,
-        textTransform: 'uppercase', letterSpacing: '0.5px',
-      }}>
-        {isLead ? 'Lead' : 'Contact'}
-      </span>
+
+      {/* Inline history panel — lazy-mounts when expanded */}
+      {expanded && canExpand && (
+        <LeadHistoryPanel phone={historyPhone} />
+      )}
     </div>
   );
 }

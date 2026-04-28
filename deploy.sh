@@ -80,6 +80,18 @@ if [[ "$REMOTE" != *"$EXPECTED_REMOTE"* ]]; then
 fi
 ok "branch=$BRANCH"
 
+# Clean up stale .git/index.lock (left over when a prior git command was
+# interrupted — harmless once no git process is running). pgrep returns
+# non-zero if no process matches, hence the explicit check.
+if [[ -f .git/index.lock ]]; then
+  if pgrep -f "git " >/dev/null 2>&1; then
+    fail "Found .git/index.lock and an active git process — wait for it to finish."
+  else
+    warn "Removing stale .git/index.lock (no active git process detected)."
+    rm -f .git/index.lock
+  fi
+fi
+
 # ── Git: stage / commit / push ───────────────────────────────────────
 if ! $SKIP_GIT; then
   step "Staging changes…"
