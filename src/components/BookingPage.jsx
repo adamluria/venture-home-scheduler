@@ -346,7 +346,7 @@ function PageWrapper({ children, brandColor, partner, onBack }) {
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
             <Sun size={22} color={brandColor} />
-            <span style={{ fontSize: '18px', fontWeight: '600' }}>Venture Home Solar</span>
+            <span style={{ fontSize: '18px', fontWeight: '600' }}>Venture Home</span>
           </div>
           <div style={{
             display: 'inline-block', padding: '4px 12px', borderRadius: '20px',

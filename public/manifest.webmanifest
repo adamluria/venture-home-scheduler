@@ -1,7 +1,7 @@
 {
-  "name": "VH Solar Scheduler",
+  "name": "Venture Home Scheduler",
   "short_name": "VH Scheduler",
-  "description": "Venture Home Solar scheduling and rep performance",
+  "description": "Venture Home scheduling and rep performance",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0A0D10",

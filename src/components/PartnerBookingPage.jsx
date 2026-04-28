@@ -496,7 +496,7 @@ function PageShell({ children, partner, brandColor, isMobile, onBack }) {
             </button>
           )}
           <p style={{ color: L.dim, fontSize: '11px', marginTop: '12px' }}>
-            Powered by Venture Home Solar Scheduling
+            Powered by Venture Home Scheduling
           </p>
         </div>
       </div>

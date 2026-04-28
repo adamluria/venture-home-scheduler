@@ -2,9 +2,9 @@
 
 ## What This Is
 
-Intelligent calendar and scheduling system for Venture Home Solar's distributed sales teams across 9 states, featuring geographic optimization, predictive assignment, and seamless Salesforce integration.
+Intelligent calendar and scheduling system for Venture Home's distributed sales teams across 9 states, featuring geographic optimization, predictive assignment, and seamless Salesforce integration.
 
-Venture Home Solar operates across 9 states with 42 sales reps covering territories from Maine to Maryland. Current scheduling is manual, geography-unaware, and creates inefficient drive times. The system needs to handle complex territory overlaps, virtual closer assignments, and external partner booking while learning from 2 years of historical performance data.
+Venture Home operates across 9 states with 42 sales reps covering territories from Maine to Maryland. Current scheduling is manual, geography-unaware, and creates inefficient drive times. The system needs to handle complex territory overlaps, virtual closer assignments, and external partner booking while learning from 2 years of historical performance data.
 
 
 ## Repo Setup

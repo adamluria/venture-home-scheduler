@@ -1,6 +1,6 @@
 # venture-home-scheduler
 
-Intelligent calendar and scheduling system for Venture Home Solar's distributed sales teams across 9 states, featuring geographic optimization, predictive assignment, and seamless Salesforce integration.
+Intelligent calendar and scheduling system for Venture Home's distributed sales teams across 9 states, featuring geographic optimization, predictive assignment, and seamless Salesforce integration.
 
 ## Quick Start
 

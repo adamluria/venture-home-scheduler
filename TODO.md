@@ -2,9 +2,9 @@
 
 ## Project Summary
 
-Intelligent calendar and scheduling system for Venture Home Solar's distributed sales teams across 9 states, featuring geographic optimization, predictive assignment, and seamless Salesforce integration.
+Intelligent calendar and scheduling system for Venture Home's distributed sales teams across 9 states, featuring geographic optimization, predictive assignment, and seamless Salesforce integration.
 
-Venture Home Solar operates across 9 states with 42 sales reps covering territories from Maine to Maryland. Current scheduling is manual, geography-unaware, and creates inefficient drive times. The system needs to handle complex territory overlaps, virtual closer assignments, and external partner booking while learning from 2 years of historical performance data.
+Venture Home operates across 9 states with 42 sales reps covering territories from Maine to Maryland. Current scheduling is manual, geography-unaware, and creates inefficient drive times. The system needs to handle complex territory overlaps, virtual closer assignments, and external partner booking while learning from 2 years of historical performance data.
 
 
 ## Release Strategy
@@ -170,7 +170,7 @@ Territory coverage has complex overlaps - some consultants cover multiple states
 ---
 
 ## Brainstorm Notes
-User is building an intelligent scheduling system for Venture Home Solar's 42-person distributed sales team across 9 states. The MVP focuses on geography-aware appointment scheduling with territory optimization and Salesforce integration. Key challenge is replacing manual scheduling with smart automation while handling complex territory overlaps, virtual closer assignments, and external partner booking. System will learn from 2 years of historical performance data to optimize consultant/closer pairings and predict optimal assignments. Future phases include route optimization, traffic awareness, and full predictive auto-scheduling.
+User is building an intelligent scheduling system for Venture Home's 42-person distributed sales team across 9 states. The MVP focuses on geography-aware appointment scheduling with territory optimization and Salesforce integration. Key challenge is replacing manual scheduling with smart automation while handling complex territory overlaps, virtual closer assignments, and external partner booking. System will learn from 2 years of historical performance data to optimize consultant/closer pairings and predict optimal assignments. Future phases include route optimization, traffic awareness, and full predictive auto-scheduling.
 
 ---
 

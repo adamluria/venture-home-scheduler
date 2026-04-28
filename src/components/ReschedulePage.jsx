@@ -52,7 +52,7 @@ export default function ReschedulePage({ token, onReschedule, onBack }) {
             <AlertCircle size={18} /> <b>Link expired or invalid</b>
           </div>
           <p style={{ marginTop: 10, color: T.muted, fontSize: 14 }}>
-            Please contact your sales consultant for a fresh link, or call Venture Home Solar at (800) 555-0123.
+            Please contact your sales consultant for a fresh link, or call Venture Home at (800) 555-0123.
           </p>
         </div>
       </Shell>

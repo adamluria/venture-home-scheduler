@@ -49,9 +49,9 @@ function confirmationEmailHtml({ customerName, appointment, repName, rescheduleL
   // Intentionally minimal HTML — real templating happens in SendGrid.
   return `
     <p>Hi ${customerName || 'there'},</p>
-    <p>Your Venture Home Solar consultation is confirmed for <strong>${when}</strong>${repName ? ` with ${repName}` : ''}.</p>
+    <p>Your Venture Home consultation is confirmed for <strong>${when}</strong>${repName ? ` with ${repName}` : ''}.</p>
     <p>If you need to reschedule, <a href="${rescheduleLink}">pick a new time here</a>.</p>
-    <p>— Venture Home Solar</p>
+    <p>— Venture Home</p>
   `.trim();
 }
 

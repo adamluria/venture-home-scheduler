@@ -35,7 +35,7 @@ Do NOT ask the user to update the docs. Do it yourself the moment it's known.
 (Ultra-fast-path fixes can bundle into the next real commit — see AGENTS.md.)
 
 ## Project context:
-- **Description**: Intelligent calendar and scheduling system for Venture Home Solar's distributed sales teams across 9 states, featuring geographic optimization, predictive assignment, and seamless Salesforce integration.
+- **Description**: Intelligent calendar and scheduling system for Venture Home's distributed sales teams across 9 states, featuring geographic optimization, predictive assignment, and seamless Salesforce integration.
 - **Stack**: React (JSX), Vite + Cloud Run
 - **Integrations**: Salesforce, Google Calendar, SMS/email notifications, external partner booking APIs (Greenwatt, Verse, SunLink, Lo Mano, Remix Dynamics)
 - **Canonical memory**: `.auto-memory/MEMORY.md` — read first, trust first

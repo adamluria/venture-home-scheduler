@@ -230,7 +230,7 @@ app.post('/api/notifications/send', async (req, res) => {
         },
         body: JSON.stringify({
           personalizations: [{ to: [{ email: appointment.email }] }],
-          from: { email: sgFrom, name: 'Venture Home Solar' },
+          from: { email: sgFrom, name: 'Venture Home' },
           subject: kind === 'confirmation'
             ? 'Your Solar Consultation is Confirmed'
             : 'Reminder: Solar Consultation Coming Up',
