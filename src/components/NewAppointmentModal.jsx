@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Search, AlertCircle } from 'lucide-react';
 import { T, fonts, TIME_SLOTS, APPOINTMENT_TYPES, TERRITORIES } from '../data/theme.js';
+import { LEAD_SOURCES } from '../data/leadSources.js';
 import { consultants } from '../data/mockData.js';
 import { getSlotAvailability } from '../data/calendarService.js';
 import SlotSuggestions from './SlotSuggestions.jsx';
@@ -267,14 +268,11 @@ export default function NewAppointmentModal({ onClose, onSave, defaultDate, defa
 
           {/* Lead source */}
           <FormField label="Lead Source">
-            <Select
+            <SearchableSelect
               value={form.leadSource}
               onChange={v => setForm({ ...form, leadSource: v })}
-              options={[
-                { value: 'paid', label: 'Paid' },
-                { value: 'self_gen', label: 'Self Gen' },
-                { value: 'get_the_referral', label: 'Get the Referral' },
-              ]}
+              options={LEAD_SOURCES}
+              placeholder="Search lead sources…"
             />
           </FormField>
         </div>
@@ -379,3 +377,74 @@ function Select({ value, onChange, options }) {
     </select>
   );
 }
+
+function SearchableSelect({ value, onChange, options, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    function onClickOutside(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = (query || '').toLowerCase().trim();
+    if (!q) return options.slice(0, 100);
+    return options.filter(o => o.toLowerCase().includes(q)).slice(0, 100);
+  }, [query, options]);
+
+  const inputStyle = {
+    width: '100%', padding: '8px 12px', borderRadius: '6px',
+    background: T.bg, border: `1px solid ${T.border}`,
+    color: T.text, fontSize: '14px', fontFamily: fonts.ui,
+    outline: 'none', boxSizing: 'border-box',
+  };
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+      <input
+        type="text"
+        value={open ? query : (value || '')}
+        placeholder={placeholder || 'Search…'}
+        onFocus={() => { setQuery(''); setOpen(true); }}
+        onChange={e => { setQuery(e.target.value); if (!open) setOpen(true); }}
+        style={inputStyle}
+      />
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+          maxHeight: '240px', overflowY: 'auto', zIndex: 50,
+          background: T.surface, border: `1px solid ${T.border}`,
+          borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+        }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: '8px 12px', color: T.muted, fontSize: '13px' }}>No matches</div>
+          ) : filtered.map(opt => (
+            <div
+              key={opt}
+              onMouseDown={(e) => { e.preventDefault(); onChange(opt); setQuery(''); setOpen(false); }}
+              style={{
+                padding: '8px 12px', fontSize: '14px', color: T.text, cursor: 'pointer',
+                background: opt === value ? T.surfaceHover : 'transparent',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = T.surfaceHover}
+              onMouseLeave={e => e.currentTarget.style.background = opt === value ? T.surfaceHover : 'transparent'}
+            >
+              {opt}
+            </div>
+          ))}
+          {filtered.length === 100 && (
+            <div style={{ padding: '6px 12px', fontSize: '12px', color: T.muted, fontStyle: 'italic', borderTop: `1px solid ${T.border}` }}>
+              Showing first 100 — keep typing to narrow
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
