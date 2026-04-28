@@ -29,7 +29,6 @@ import ReschedulePage from './components/ReschedulePage.jsx';
 import SearchBar from './components/SearchBar.jsx';
 import CancelReasonModal from './components/CancelReasonModal.jsx';
 import { BulkActions, RepIsOutButton } from './components/BulkActions.jsx';
-import { PrintButton } from './components/PrintView.jsx';
 import CustomerBookingPage from './components/CustomerBookingPage.jsx';
 import HelpPanel from './components/HelpPanel.jsx';
 import useIsMobile from './hooks/useIsMobile.js';
@@ -499,7 +498,6 @@ function Dashboard({ sfdcDefaults } = {}) {
             >
               <HelpCircle size={14} /> Help
             </button>
-            <PrintButton dateString={currentDate} selectedRegions={selectedRegions} />
             <RepIsOutButton
               onReassign={(repId, date) => {
                 const repAppts = mockAppointments.filter(a => a.consultant === repId && a.date === date && !a.isPlaceholder);

@@ -57,14 +57,12 @@ export default function AppointmentDetail({ appointment, onClose, onReassign, on
             }}>
               {statusInfo.name}
             </span>
-            {appointment.isVirtual && (
-              <span style={{
-                padding: '3px 8px', borderRadius: '4px', fontSize: '12px',
-                background: T.border, color: T.text, display: 'flex', alignItems: 'center', gap: '4px',
-              }}>
-                <Video size={11} /> Virtual
-              </span>
-            )}
+            <span style={{
+              padding: '3px 8px', borderRadius: '4px', fontSize: '12px',
+              background: T.border, color: T.text, display: 'flex', alignItems: 'center', gap: '4px',
+            }}>
+              {appointment.isVirtual ? <><Video size={11} /> Online</> : 'In-Person'}
+            </span>
             <TsrfBadge tsrf={appointment.tsrf} variant="chip" />
             <OwnerBadge appointment={appointment} variant="chip" />
           </div>
@@ -130,7 +128,7 @@ export default function AppointmentDetail({ appointment, onClose, onReassign, on
 
         {/* Google Meet link for virtual appointments */}
         {appointment.isVirtual && (
-          <Section title="Virtual Meeting">
+          <Section title="Online Meeting">
             <div style={{
               padding: '10px 12px', borderRadius: '6px',
               background: 'rgba(66, 133, 244, 0.1)', border: '1px solid rgba(66, 133, 244, 0.2)',

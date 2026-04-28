@@ -103,14 +103,12 @@ export default function AppointmentCard({ appointment, compact = false, onClick 
           }}>
             {typeInfo.name}
           </span>
-          {appointment.isVirtual && (
-            <span style={{
-              padding: '2px 6px', borderRadius: '4px', fontSize: '11px',
-              background: T.border, color: T.text, display: 'flex', alignItems: 'center', gap: '3px',
-            }}>
-              <Video size={10} /> Virtual
-            </span>
-          )}
+          <span style={{
+            padding: '2px 6px', borderRadius: '4px', fontSize: '11px',
+            background: T.border, color: T.text, display: 'flex', alignItems: 'center', gap: '3px',
+          }}>
+            {appointment.isVirtual ? <><Video size={10} /> Online</> : 'In-Person'}
+          </span>
         </div>
 
         {appointment.address && (

@@ -103,7 +103,7 @@ export default function CustomerBookingPage({ onSubmit, onBack }) {
           color: lightText,
         }}>
           <img
-            src="/logo-black.jpg"
+            src="/logo-black.png"
             alt="Venture Home"
             style={{
               height: isMobile ? '48px' : '60px',

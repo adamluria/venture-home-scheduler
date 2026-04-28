@@ -28,13 +28,15 @@ export const fonts = {
   data: "'JetBrains Mono', monospace",
 };
 
-// Appointment types with distinct colors
+// Appointment Subjects — displayed as "Subject" in the UI.
+// To add a new subject, just add a new entry here with a unique key.
+// The key is stored on each appointment as `apt.type` (legacy field name).
 export const APPOINTMENT_TYPES = {
-  appointment:      { name: 'Initial Appointment', color: T.accent,  duration: 90 },
-  'follow-up':      { name: 'Follow-up',           color: T.green,   duration: 60 },
+  appointment:      { name: 'Appointment',          color: T.accent,  duration: 90 },
+  'follow-up':      { name: 'Follow Up Appointment', color: T.green,  duration: 60 },
   contract:         { name: 'Contract Signing',     color: T.purple,  duration: 90 },
   'change-order':   { name: 'Change Order',         color: T.pink,    duration: 60 },
-  'cancel-save':    { name: 'Cancel Save',          color: T.red,     duration: 60 },
+  'cancel-save':    { name: 'Cancel/Save',          color: T.red,     duration: 60 },
 };
 
 // Appointment statuses

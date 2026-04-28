@@ -218,10 +218,22 @@ export default function NewAppointmentModal({ onClose, onSave, defaultDate, defa
                 return { value: s, label: avail === 0 ? `${s}  (full)` : `${s}  (${avail} free)` };
               })} />
             </FormField>
-            <FormField label="Type">
+            <FormField label="Subject">
               <Select value={form.type} onChange={v => setForm({ ...form, type: v })} options={Object.entries(APPOINTMENT_TYPES).map(([k, v]) => ({ value: k, label: v.name }))} />
             </FormField>
           </div>
+
+          {/* Appointment Type */}
+          <FormField label="Appointment Type">
+            <Select
+              value={form.isVirtual ? 'online' : 'in-person'}
+              onChange={v => setForm({ ...form, isVirtual: v === 'online' })}
+              options={[
+                { value: 'in-person', label: 'In-Person' },
+                { value: 'online', label: 'Online Meeting' },
+              ]}
+            />
+          </FormField>
 
           {/* Consultant */}
           <FormField label="Assign Consultant">
@@ -252,19 +264,6 @@ export default function NewAppointmentModal({ onClose, onSave, defaultDate, defa
               options={[{ value: '', label: 'None' }, ...availableExperts.map(c => ({ value: c.id, label: `${c.name}${c.isVirtualOnly ? ' (virtual)' : ''}` }))]}
             />
           </FormField>
-
-          {/* Virtual toggle */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <input
-              type="checkbox"
-              checked={form.isVirtual}
-              onChange={e => setForm({ ...form, isVirtual: e.target.checked })}
-              style={{ accentColor: T.accent }}
-            />
-            <label style={{ fontSize: '14px', color: T.text, fontFamily: fonts.ui }}>
-              Virtual appointment (Google Meet)
-            </label>
-          </div>
 
           {/* Lead source */}
           <FormField label="Lead Source">

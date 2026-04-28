@@ -460,7 +460,7 @@ function PageShell({ children, partner, brandColor, isMobile, onBack }) {
           borderBottom: `4px solid ${brandColor}`,
         }}>
           <img
-            src="/logo-black.jpg"
+            src="/logo-black.png"
             alt="Venture Home"
             style={{ height: isMobile ? '40px' : '50px', marginBottom: '8px', objectFit: 'contain' }}
             onError={(e) => { e.target.style.display = 'none'; }}

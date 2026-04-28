@@ -192,7 +192,7 @@ export default function PrintView({ dateString, selectedRegions = [] }) {
                       fontWeight: 'bold',
                       fontSize: '9px',
                     }}>
-                      Type
+                      Subject
                     </th>
                     <th style={{
                       textAlign: 'center',
