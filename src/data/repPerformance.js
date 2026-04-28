@@ -245,3 +245,25 @@ function hashCode(str) {
 }
 
 export { POSITION_CLOSE_RATE, SLOT_CLOSE_MULTIPLIER, SIT_RATE_BY_SOURCE };
+
+// ═══════════════════════════════════════════════════════════════════
+// Cancellation rate — Chris's factor (graft from sister repo formula)
+// ───────────────────────────────────────────────────────────────────
+// Returns the rep's recent cancellation rate (0-1). Today this is synthetic
+// (deterministic jitter per repId, range 3-28% to match Chris's distribution).
+// In Slice A we replace with real data: count of cancelled Appointment__c
+// records / total in trailing 90 days from /api/sfdc/performance/by-rep.
+// ═══════════════════════════════════════════════════════════════════
+
+const CANCEL_RATE_OVERRIDES = {
+  // Reps with known reliability profiles can be hand-tuned here once
+  // we have real data. Empty until Slice A wires SF data in.
+};
+
+export function getRepCancelRate(repId) {
+  if (CANCEL_RATE_OVERRIDES[repId] != null) return CANCEL_RATE_OVERRIDES[repId];
+  const seed = hashCode(repId + '|cancel');
+  // 3% to 28% — same range Chris uses in his synthetic gen
+  return 0.03 + ((seed % 1000) / 1000) * 0.25;
+}
+

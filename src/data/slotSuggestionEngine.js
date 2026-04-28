@@ -19,8 +19,8 @@
 //   - Reasons (so the dispatcher understands WHY this slot is #1)
 // ═══════════════════════════════════════════════════════════════════
 
-import { consultants } from './mockData.js';
-import { getRepCloseRate } from './repPerformance.js';
+import { consultants, mockAppointments } from './mockData.js';
+import { getRepCloseRate, getRepCancelRate } from './repPerformance.js';
 import { predictSitRate } from './forecastEngine.js';
 import { TIME_SLOTS } from './theme.js';
 import { getSlotAvailability } from './calendarService.js';
@@ -95,6 +95,9 @@ export function scoreRepSlot({
   customerState = '',
   isVirtual = false,
   tsrf = null,               // Aurora avg TSRF (0-100); null = unknown
+  todayAppts = 0,            // count of appts already booked for this rep today.
+                             // Chris's factor — fairness/workload balancing.
+                             // Penalty kicks in starting at 3 (Chris caps at 4).
 }) {
   const reasons = [];
 
@@ -130,7 +133,27 @@ export function scoreRepSlot({
   const pCloseGivenSit = Math.min(0.65, pCloseGivenSitRaw * tsrfMod); // respect existing cap
 
   // Combined
-  const pClose = pSit * pCloseGivenSit;
+  let pClose = pSit * pCloseGivenSit;
+
+  // ── Chris's grafted factors ────────────────────────────────────────
+  // Component 4: Cancellation penalty — reps who get cancelled-on a lot
+  // have lower effective close rate. Mirrors Chris's 30% perfScore weight.
+  // We apply as a multiplier (1 - cancelRate × 0.5) so a 20% canceller
+  // takes a 10% hit, a 5% canceller takes a 2.5% hit. Gentler than Chris's
+  // straight (1 - cancelRate) because we're multiplying a probability,
+  // not summing into a 0-100 composite.
+  const cancelRate = getRepCancelRate(rep.id);
+  const cancelMultiplier = 1 - cancelRate * 0.5;
+  pClose = pClose * cancelMultiplier;
+
+  // Component 5: Workload penalty — soft cap on reps already loaded today.
+  // Chris caps at 4 appts/day; we apply a smooth penalty starting at 3.
+  // 0-2 appts: no penalty (1.0). 3 appts: 0.92. 4 appts: 0.78. 5+: 0.60.
+  let workloadMultiplier = 1.0;
+  if (todayAppts >= 3) workloadMultiplier = 0.92;
+  if (todayAppts >= 4) workloadMultiplier = 0.78;
+  if (todayAppts >= 5) workloadMultiplier = 0.60;
+  pClose = pClose * workloadMultiplier;
 
   // Reason generation
   if (proxMod >= 0.98) reasons.push('Rep lives near customer');
@@ -144,6 +167,12 @@ export function scoreRepSlot({
   else if (pCloseGivenSit >= 0.30) reasons.push('Strong closer');
 
   if (rep.isHybrid) reasons.push('Hybrid rep — flexible');
+
+  if (cancelRate < 0.08) reasons.push('Low cancellation rate');
+  else if (cancelRate > 0.20) reasons.push('Higher cancellation history');
+
+  if (todayAppts === 0) reasons.push('No other appts today');
+  else if (todayAppts >= 4) reasons.push(`Already loaded today (${todayAppts} appts)`);
 
   const tsrfTier = getTsrfTier(tsrf);
   if (tsrfTier.key === 'premium') reasons.push('Premium roof (TSRF ≥ 85)');
@@ -160,6 +189,11 @@ export function scoreRepSlot({
       proxMod: Math.round(proxMod * 100) / 100,
       tsrfMod: Math.round(tsrfMod * 100) / 100,
       tsrfTier: tsrfTier.key,
+      // Chris's grafted factors — surfaced for UI audit
+      cancelRate: Math.round(cancelRate * 1000) / 10,           // % with 1 decimal
+      cancelMultiplier: Math.round(cancelMultiplier * 100) / 100,
+      todayAppts,
+      workloadMultiplier: Math.round(workloadMultiplier * 100) / 100,
     },
     reasons,
     blocked: false,
@@ -286,12 +320,27 @@ export async function rankRepsForSlot({ date, slot, territory, leadSource, custo
   const ids = eligibleReps.map(r => r.id);
   const availability = await getSlotAvailability(date, ids);
 
+  // Count each rep's existing appointments on this date — feeds the
+  // workload-balancing factor in scoreRepSlot (Chris's todayAppts).
+  // Counts non-cancelled appointments scheduled for the same date.
+  const todayApptsByRep = {};
+  for (const rep of eligibleReps) {
+    todayApptsByRep[rep.id] = mockAppointments.filter(a =>
+      a.consultant === rep.id &&
+      a.date === date &&
+      a.status !== 'cancelled' &&
+      a.status !== 'no-show' &&
+      !a.isPlaceholder
+    ).length;
+  }
+
   const ranked = eligibleReps
     .filter(rep => availability[rep.id]?.[slot]?.available)
     .map(rep => {
       const scored = scoreRepSlot({
         rep, dateString: date, timeSlot: slot,
         leadSource, customerZip, customerCity, customerState, isVirtual,
+        todayAppts: todayApptsByRep[rep.id] || 0,
       });
       return { repId: rep.id, repName: rep.name, repTeam: rep.team, ...scored };
     })

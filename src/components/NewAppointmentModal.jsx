@@ -7,6 +7,7 @@ import { getSlotAvailability } from '../data/calendarService.js';
 import { leadToFormValues } from '../data/leadMapper.js';
 import SlotSuggestions from './SlotSuggestions.jsx';
 import LeadPicker from './LeadPicker.jsx';
+import SmartPickPreview from './SmartPickPreview.jsx';
 import useIsMobile from '../hooks/useIsMobile.js';
 
 export default function NewAppointmentModal({ onClose, onSave, defaultDate, defaultForm }) {
@@ -272,6 +273,11 @@ export default function NewAppointmentModal({ onClose, onSave, defaultDate, defa
               options={[{ value: '', label: 'Auto-assign (recommended)' }, ...availableConsultants.map(c => ({ value: c.id, label: `${c.name} — ${c.team}` }))]}
             />
           </FormField>
+
+          {/* Smart-pick preview — only shown when user keeps Auto-assign,
+              so they can see exactly which rep + factors the engine picks
+              before committing. Click the chevron for the full breakdown. */}
+          {!form.consultant && <SmartPickPreview form={form} />}
 
           {/* Busy warning */}
           {form.consultant && isConsultantBusy(form.consultant) && (
