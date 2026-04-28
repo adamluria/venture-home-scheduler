@@ -455,10 +455,10 @@ function Dashboard({ sfdcDefaults } = {}) {
       }}>
         <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '14px' }}>
           <img
-            src="/logo-white.png"
+            src="/logo-wordmark-white.svg"
             alt="Venture Home"
             style={{
-              height: isMobile ? '28px' : '36px',
+              height: isMobile ? '20px' : '26px',
               objectFit: 'contain',
               flexShrink: 0,
             }}
