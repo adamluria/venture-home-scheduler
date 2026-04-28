@@ -39,6 +39,7 @@ import { logAction } from './data/auditLog.js';
 import { pushUndo, undo, canUndo, peekUndo } from './data/undoService.js';
 import { checkBufferConflict } from './data/bufferService.js';
 import { sendSlackAlert } from './data/slackAlerts.js';
+import { rankRepsForSlot } from './data/slotSuggestionEngine.js';
 
 // Simple hash-based router: #/book/greenwatt → booking page
 function useHashRoute() {
@@ -283,14 +284,45 @@ function Dashboard({ sfdcDefaults } = {}) {
     }
   };
 
-  const handleCreateAppointment = (data) => {
-    const apt = commitAppointment(data);
+  const handleCreateAppointment = async (data) => {
+    // ── Auto-assign ─────────────────────────────────────────────────
+    // If the user picked "Auto-assign (recommended)" the form sends
+    // `consultant: ''`. Resolve to the top-ranked eligible rep using the
+    // existing slot-suggestion engine (factors: position, slot multiplier,
+    // lead-source synergy, calendar availability, drive distance).
+    // Falls back to blank (Unassigned) if no rep is available — the user
+    // sees a warning toast in that case.
+    let resolvedData = data;
+    let autoAssigned = false;
+    if (!data.consultant && data.territory && data.date && data.time) {
+      try {
+        const ranked = await rankRepsForSlot({
+          date:         data.date,
+          slot:         data.time,
+          territory:    data.territory,
+          leadSource:   data.leadSource,
+          customerZip:  data.zipCode,
+          isVirtual:    data.isVirtual,
+          topN:         1,
+        });
+        if (ranked.length > 0) {
+          resolvedData = { ...data, consultant: ranked[0].repId };
+          autoAssigned = true;
+        }
+      } catch (err) {
+        console.warn('Auto-assign failed (non-blocking):', err.message);
+      }
+    }
+
+    const apt = commitAppointment(resolvedData);
     refresh();
     const repName = getConsultantName(apt.consultant) || 'Unassigned';
     logAction({ appointmentId: apt.id, action: 'create', field: null, oldValue: null, newValue: `${apt.customer} at ${apt.time}` });
     setToast({
-      type: 'success',
-      title: 'Appointment scheduled',
+      type:    apt.consultant ? 'success' : 'warning',
+      title:   apt.consultant
+                 ? (autoAssigned ? 'Auto-assigned' : 'Appointment scheduled')
+                 : 'Scheduled — no rep available',
       message: `${apt.customer} — ${formatDateFull(apt.date)} at ${apt.time} with ${repName}`,
     });
     // Check buffer conflicts
