@@ -164,20 +164,48 @@ Territory coverage has complex overlaps - some consultants cover multiple states
 
 ## Next Session: Smart Assignment Integration
 
-Pull the smart-assignment view from the sister repo (`github.com/CSVenture1/venture-home-sales-intelligence`) into this scheduler. Estimated 1-2 hours.
+**Status as of 2026-04-28 EOD:** OAuth + Lead picker + customer-history all working end-to-end against partial-copy sandbox (revision 00024). Smart Assignment is the next layer: replace static rep ranking heuristics with real SF data, surface the reasoning to reps. The work below splits into 4 independent slices — pick whichever has the most leverage when picking up.
 
-**Source material**:
-- Sister repo `src/app.jsx` lines 1242-1539 — `AppointmentAssignmentView` component (~300 lines): customer cards, time slot selection, ranked rep recommendations.
-- Sister repo helper functions (`generateRepsBySource`, `generateInsights`, `getColor`) — lift only what's needed.
+### Slice C — Audit Auto-Assign (start here, smallest, highest leverage)
+Goal: confirm the form's `Auto-assign (recommended)` option actually uses `rankRepsForSlot`, not "first alphabetical with no calendar conflict."
+- [ ] Open `src/components/NewAppointmentModal.jsx` → find `handleSubmit` → trace what happens when `form.consultant === ''`
+- [ ] Trace into `commitAppointment` in `src/app.jsx` and any auto-assign helper
+- [ ] If it doesn't call `rankRepsForSlot` from `src/data/slotSuggestionEngine.js`, wire it up: when consultant is empty, await `rankRepsForSlot({ date, slot, territory, leadSource, ... })` and take `[0].repId`
+- [ ] Smoke test: create an appointment with consultant blank, verify it picks a sensible rep
+**Estimate:** 20-40 min
 
-**Integration plan**:
-1. **Lift the ranking UI** → new component `src/components/SmartAssignmentView.jsx`. Adapt theme imports to our `data/theme.js`.
-2. **Replace synthetic data** with our real `repPerformance.js` (`getRepSourceStats`).
-3. **Wire real SF performance** — call `/api/sfdc/performance/by-source` (endpoint exists, frontend never uses it). Cache on app boot. Feed into `getRepCloseRate`. ("Gap A")
-4. **Add "Best for {leadSource}" badge** to ranked picker results. ("Gap B")
-5. **Audit `Auto-assign (recommended)`** — verify it actually uses `rankRepsForSlot`. ("Gap C")
+### Slice B — "Best for {leadSource}" badge in the rep dropdown
+Goal: when the user picks a rep manually, surface which reps over-index on the current lead source.
+- [ ] In `NewAppointmentModal.jsx`, the **Assign Consultant** dropdown maps `availableConsultants` → option labels. Replace the simple label with a label + small badge.
+- [ ] Compute synergy: `getRepCloseRate(rep.id, { leadSource: form.leadSource }) / getRepCloseRate(rep.id, { leadSource: null })`. If ratio > 1.05, mark with `★ Best for {leadSource}`.
+- [ ] Source: `src/data/repPerformance.js` exports `getRepCloseRate`.
+- [ ] Optional: re-sort the dropdown so high-synergy reps float to top of the territory's available list.
+**Estimate:** 30-60 min
 
-**Out of scope**: the other three views in the sister repo (Lead Sources, Rep Performance, Market Overview) — management dashboards, not scheduling-decision tools.
+### Slice A — Wire real SF performance into the engine
+Goal: replace `repPerformance.js`'s synthetic-jitter close rates with real data from SF.
+- [ ] `server.js` already has `GET /api/sfdc/performance/by-source` (~line 466). Hit it once locally to inspect the actual response shape.
+- [ ] Add a fetcher in `src/data/repPerformance.js`: module-scoped Promise cached for 10 min, called lazily on first `getRepSourceStats` call.
+- [ ] Modify `getRepSourceStats(repId, leadSource)` to return real data when available (keyed by `(repId, leadSource)` or by aggregate SF user id), fall back to current synthetic when missing.
+- [ ] Verify: after auth, the rep ranking should reflect real Q4 performance numbers, not deterministic-but-fake numbers.
+**Estimate:** 60 min
+
+### Slice D — Port the standalone Smart Assignment view
+Source: `github.com/CSVenture1/venture-home-sales-intelligence` → `src/app.jsx` lines 1242-1539 → `AppointmentAssignmentView` (~300 lines: customer cards, time slot grid, ranked rep recommendations with reason strings).
+- [ ] Clone fresh: `git clone --depth=1 https://github.com/CSVenture1/venture-home-sales-intelligence.git /tmp/vhsi-fresh`
+- [ ] Create `src/components/SmartAssignmentView.jsx`. Port the JSX, adapt the inline `T = {...}` constants to import from `src/data/theme.js`.
+- [ ] Replace mock data: `INSIDE_REPS`, `OUTSIDE_REPS`, `LEAD_SOURCES` → consume from our `mockData.js` consultants and `leadSources.js`.
+- [ ] Replace `generateRepsBySource` synthetic helper with real `getRepSourceStats` + `getRepCloseRate` calls.
+- [ ] Add to view router in `src/app.jsx` (alongside DayView/WeekView/MonthView/etc) under a new view mode like `viewMode === 'smart'`.
+- [ ] Add a tab/button to `CalendarNav` (or wherever views are switched).
+**Estimate:** 60-90 min
+
+### Done criteria for the whole feature
+A rep can: open New Appointment, the consultant dropdown shows ranked reps with "Best for {source}" badges, "Auto-assign (recommended)" picks the top-ranked rep based on real SF performance data + territory + slot + lead source, and there's a separate "Smart Assignments" view showing all open customer slots with rep recommendations.
+
+### Out of scope for this work
+- Other three views in sister repo (Lead Sources, Rep Performance, Market Overview) — management dashboards, separate work.
+- Salesforce `Appointment__c` custom object setup — required only for SF write-back, independent of this work. See `docs/salesforce-sandbox-setup.md` §1.3.
 
 ---
 
