@@ -6,20 +6,24 @@ type: reference
 
 ## Infrastructure
 
-- **GCP project**: TBD — set during Phase 1
-- **Cloud Run URL**: TBD — set after first deploy
-- **Region**: us-east1
+- **GCP project ID**: `venture-home-scheduler` (project number `9110064509`) — confirmed 2026-04-28
+- **Cloud Run URL**: `https://venture-home-scheduler-9110064509.us-east1.run.app`
+- **Region**: `us-east1`
 - **GCS bucket**: TBD
-- **GitHub repo**: TBD — set during Phase 1
+- **GitHub repo**: `https://github.com/adamluria/venture-home-scheduler` — branch `main`
 
 ## Environment Variables
 
-See `.env.example` for the full list.
+See `.env.example` for the full list. Production values live as Cloud Run env vars; never commit `.env.local`.
 
 ## Deploy Command
 
 ```bash
-gcloud run deploy venture-home-scheduler --source . --region us-east1 --project [GCP_PROJECT_ID]
+# One-time: set project as default
+gcloud config set project venture-home-scheduler
+
+# Deploy
+gcloud run deploy venture-home-scheduler --source . --region us-east1
 ```
 
-**Important**: Always use `--update-env-vars`, never `--set-env-vars` (the latter wipes all existing vars).
+**Important**: When updating env vars, always use `--update-env-vars`, never `--set-env-vars` (the latter wipes all existing vars).
