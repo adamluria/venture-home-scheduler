@@ -4,7 +4,9 @@ import { T, fonts, TIME_SLOTS, APPOINTMENT_TYPES, TERRITORIES } from '../data/th
 import { LEAD_SOURCES } from '../data/leadSources.js';
 import { consultants } from '../data/mockData.js';
 import { getSlotAvailability } from '../data/calendarService.js';
+import { leadToFormValues } from '../data/leadMapper.js';
 import SlotSuggestions from './SlotSuggestions.jsx';
+import LeadPicker from './LeadPicker.jsx';
 import useIsMobile from '../hooks/useIsMobile.js';
 
 export default function NewAppointmentModal({ onClose, onSave, defaultDate, defaultForm }) {
@@ -159,6 +161,18 @@ export default function NewAppointmentModal({ onClose, onSave, defaultDate, defa
           gap: isMobile ? '14px' : '16px',
           flex: 1,
         }}>
+          {/* Salesforce Lead/Contact lookup — type to search, click to prefill */}
+          <FormField label="Lookup Customer in Salesforce">
+            <LeadPicker
+              onSelect={(lead) => {
+                const mapped = leadToFormValues(lead);
+                setForm(prev => ({ ...prev, ...mapped }));
+                // Trigger zip-based territory detection on the prefilled zip.
+                if (mapped.zipCode) handleZipChange(mapped.zipCode);
+              }}
+            />
+          </FormField>
+
           {/* Customer */}
           <FormField label="Customer Name">
             <Input value={form.customer} onChange={v => setForm({ ...form, customer: v })} placeholder="Last name or family name" />
@@ -186,6 +200,20 @@ export default function NewAppointmentModal({ onClose, onSave, defaultDate, defa
               Territory detected: <strong>{TERRITORIES[zipSuggestion]?.name}</strong> ({zipSuggestion})
             </div>
           )}
+
+          {/* Phone + Email — prefilled from Salesforce Lead lookup or deep-link */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+            gap: '12px',
+          }}>
+            <FormField label="Phone">
+              <Input value={form.phone || ''} onChange={v => setForm({ ...form, phone: v })} placeholder="(555) 123-4567" />
+            </FormField>
+            <FormField label="Email">
+              <Input value={form.email || ''} onChange={v => setForm({ ...form, email: v })} placeholder="customer@email.com" />
+            </FormField>
+          </div>
 
           {/* Suggested slots (highest likelihood to close) */}
           {form.territory && (

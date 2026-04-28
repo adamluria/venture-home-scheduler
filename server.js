@@ -617,7 +617,7 @@ app.get('/api/sfdc/lead/:id', async (req, res) => {
   }
 
   try {
-    const fields = 'Id,Name,FirstName,LastName,Phone,Email,Street,PostalCode,City,State,LeadSource,Company,Status';
+    const fields = 'Id,Name,FirstName,LastName,Phone,MobilePhone,Email,Street,PostalCode,City,State,LeadSource,Company,Status';
     const queryRes = await fetch(
       `${sfdc.instanceUrl}/services/data/v59.0/sobjects/Lead/${req.params.id}?fields=${fields}`,
       { headers: { 'Authorization': `Bearer ${sfdc.accessToken}` } }
@@ -993,7 +993,9 @@ app.get('/api/slack/test', async (req, res) => {
   res.json({ configured });
 });
 
-// GET /api/sfdc/search?phone=...&email=... — lookup Lead or Contact by phone/email
+// GET /api/sfdc/search?phone=...&email=...&name=... — lookup Lead or Contact
+//   - phone/email: exact-match SOQL (existing behavior)
+//   - name: fuzzy SOSL across Name fields (used by the in-app Lead picker)
 app.get('/api/sfdc/search', async (req, res) => {
   const sfdc = app.locals.sfdc;
   if (!sfdc?.accessToken) {
@@ -1001,17 +1003,18 @@ app.get('/api/sfdc/search', async (req, res) => {
   }
 
   try {
-    const { phone, email } = req.query;
+    const { phone, email, name } = req.query;
     const results = { leads: [], contacts: [] };
 
-    // Search Leads
+    // ── Phone/Email — exact-match SOQL (existing behavior) ────────────
     if (phone || email) {
       const conditions = [];
       if (phone) conditions.push(`Phone = '${phone.replace(/'/g, "\\'")}'`);
+      if (phone) conditions.push(`MobilePhone = '${phone.replace(/'/g, "\\'")}'`);
       if (email) conditions.push(`Email = '${email.replace(/'/g, "\\'")}'`);
       const where = conditions.join(' OR ');
 
-      const leadQuery = `SELECT Id, Name, Phone, Email, Street, PostalCode, City, State, LeadSource, Status FROM Lead WHERE (${where}) AND IsConverted = false ORDER BY CreatedDate DESC LIMIT 5`;
+      const leadQuery = `SELECT Id, Name, FirstName, LastName, Phone, MobilePhone, Email, Street, PostalCode, City, State, LeadSource, Status FROM Lead WHERE (${where}) AND IsConverted = false ORDER BY CreatedDate DESC LIMIT 5`;
       const leadRes = await fetch(
         `${sfdc.instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(leadQuery)}`,
         { headers: { 'Authorization': `Bearer ${sfdc.accessToken}` } }
@@ -1019,14 +1022,15 @@ app.get('/api/sfdc/search', async (req, res) => {
       if (leadRes.ok) {
         const data = await leadRes.json();
         results.leads = (data.records || []).map(r => ({
-          id: r.Id, name: r.Name, phone: r.Phone, email: r.Email,
+          id: r.Id, name: r.Name, firstName: r.FirstName, lastName: r.LastName,
+          phone: r.Phone, mobilePhone: r.MobilePhone, email: r.Email,
           address: r.Street, zip: r.PostalCode, city: r.City, state: r.State,
           source: r.LeadSource, status: r.Status, type: 'lead',
         }));
       }
 
       // Also search Contacts (which have associated Opportunities)
-      const contactQuery = `SELECT Id, Name, Phone, Email, MailingStreet, MailingPostalCode, MailingCity, MailingState, AccountId FROM Contact WHERE (${where}) ORDER BY CreatedDate DESC LIMIT 5`;
+      const contactQuery = `SELECT Id, Name, FirstName, LastName, Phone, MobilePhone, Email, MailingStreet, MailingPostalCode, MailingCity, MailingState, AccountId FROM Contact WHERE (${where}) ORDER BY CreatedDate DESC LIMIT 5`;
       const contactRes = await fetch(
         `${sfdc.instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(contactQuery)}`,
         { headers: { 'Authorization': `Bearer ${sfdc.accessToken}` } }
@@ -1034,11 +1038,59 @@ app.get('/api/sfdc/search', async (req, res) => {
       if (contactRes.ok) {
         const data = await contactRes.json();
         results.contacts = (data.records || []).map(r => ({
-          id: r.Id, name: r.Name, phone: r.Phone, email: r.Email,
+          id: r.Id, name: r.Name, firstName: r.FirstName, lastName: r.LastName,
+          phone: r.Phone, mobilePhone: r.MobilePhone, email: r.Email,
           address: r.MailingStreet, zip: r.MailingPostalCode,
           city: r.MailingCity, state: r.MailingState,
           accountId: r.AccountId, type: 'contact',
         }));
+      }
+    }
+
+    // ── Name — fuzzy SOSL across Name fields ──────────────────────────
+    // Used by the in-app Lead picker. SOSL handles tokens better than LIKE
+    // and searches the indexed Name field across both Lead and Contact in one call.
+    if (name && name.trim().length >= 2) {
+      // Strip SOSL reserved chars; trailing '*' enables prefix match per token.
+      const term = name.replace(/[?&|!{}\[\]()^~*:\\"'\-+]/g, ' ').trim();
+      const tokens = term.split(/\s+/).filter(Boolean).map(t => `${t}*`).join(' ');
+      const sosl =
+        `FIND {${tokens}} IN NAME FIELDS RETURNING ` +
+        `Lead(Id, Name, FirstName, LastName, Phone, MobilePhone, Email, ` +
+          `Street, PostalCode, City, State, LeadSource, Status ` +
+          `WHERE IsConverted = false ORDER BY CreatedDate DESC LIMIT 8), ` +
+        `Contact(Id, Name, FirstName, LastName, Phone, MobilePhone, Email, ` +
+          `MailingStreet, MailingPostalCode, MailingCity, MailingState, AccountId LIMIT 8)`;
+
+      const sr = await fetch(
+        `${sfdc.instanceUrl}/services/data/v59.0/search?q=${encodeURIComponent(sosl)}`,
+        { headers: { 'Authorization': `Bearer ${sfdc.accessToken}` } }
+      );
+      if (sr.ok) {
+        const data = await sr.json();
+        for (const rec of (data.searchRecords || [])) {
+          if (rec.attributes?.type === 'Lead') {
+            results.leads.push({
+              id: rec.Id, name: rec.Name,
+              firstName: rec.FirstName, lastName: rec.LastName,
+              phone: rec.Phone, mobilePhone: rec.MobilePhone, email: rec.Email,
+              address: rec.Street, zip: rec.PostalCode, city: rec.City, state: rec.State,
+              source: rec.LeadSource, status: rec.Status, type: 'lead',
+            });
+          } else if (rec.attributes?.type === 'Contact') {
+            results.contacts.push({
+              id: rec.Id, name: rec.Name,
+              firstName: rec.FirstName, lastName: rec.LastName,
+              phone: rec.Phone, mobilePhone: rec.MobilePhone, email: rec.Email,
+              address: rec.MailingStreet, zip: rec.MailingPostalCode,
+              city: rec.MailingCity, state: rec.MailingState,
+              accountId: rec.AccountId, type: 'contact',
+            });
+          }
+        }
+      } else {
+        const errText = await sr.text().catch(() => '');
+        console.warn('SFDC name search SOSL non-OK:', sr.status, errText.slice(0, 200));
       }
     }
 
