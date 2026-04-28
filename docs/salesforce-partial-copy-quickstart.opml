@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>Salesforce Partial Copy → Scheduler Quickstart</title>
+    <ownerName>VH Scheduler</ownerName>
+    <dateCreated>Tue, 28 Apr 2026 00:00:00 GMT</dateCreated>
+  </head>
+  <body>
+    <outline text="Salesforce Partial Copy → Scheduler">
+
+      <outline text="Partial-Copy gotchas (read first)">
+        <outline text="OAuth login URL: https://test.salesforce.com (same for any sandbox)"/>
+        <outline text="Sandbox username: &lt;prod username&gt;.&lt;sandbox name&gt;">
+          <outline text="Example: adam@venturehome.com.partcopy"/>
+        </outline>
+        <outline text="Sandbox instance URL: https://&lt;your-domain&gt;--&lt;sandbox name&gt;.sandbox.my.salesforce.com"/>
+        <outline text="Connected App must exist in the sandbox">
+          <outline text="If sandbox was refreshed AFTER prod app was created, it's already there"/>
+          <outline text="Otherwise, build it standalone in the sandbox"/>
+        </outline>
+        <outline text="Data: sampled real Leads/Accounts/Contacts/Opps">
+          <outline text="LeadPicker and customer-history features find real records"/>
+        </outline>
+      </outline>
+
+      <outline text="Step 1 — Connected App (in sandbox)">
+        <outline text="1. Log in at test.salesforce.com with .partcopy username"/>
+        <outline text="2. Setup → App Manager → New Connected App"/>
+        <outline text="3. Settings">
+          <outline text="Name: VH Scheduler"/>
+          <outline text="Enable OAuth: yes"/>
+          <outline text="Callback URL: https://venture-home-scheduler-9110064509.us-east1.run.app/auth/salesforce/callback"/>
+          <outline text="Scopes: api"/>
+          <outline text="Scopes: refresh_token, offline_access"/>
+          <outline text="Scopes: id, profile, email"/>
+        </outline>
+        <outline text="4. Save → wait 5–10 minutes (SF needs propagation time)"/>
+        <outline text="5. View → copy Consumer Key (= SF_CLIENT_ID)"/>
+        <outline text="6. View → reveal Consumer Secret (= SF_CLIENT_SECRET)"/>
+        <outline text="7. Manage → Edit Policies">
+          <outline text="Permitted Users: Admin approved users are pre-authorized"/>
+          <outline text="IP Relaxation: Relax IP restrictions"/>
+          <outline text="Refresh Token Policy: valid until revoked"/>
+        </outline>
+      </outline>
+
+      <outline text="Step 2 — Custom Object: Appointment__c">
+        <outline text="Setup → Object Manager → Create → Custom Object"/>
+        <outline text="Label: Appointment, API Name: Appointment__c"/>
+        <outline text="Record Name: Auto Number, format APT-{0000}"/>
+        <outline text="Add 19 fields (full table in salesforce-sandbox-setup.md §1.3)">
+          <outline text="Lookups: Opportunity__c, Lead__c"/>
+          <outline text="Customer fields: Name, Address, Zip, Phone, Email"/>
+          <outline text="Schedule fields: Scheduled_Date__c, Scheduled_Time__c"/>
+          <outline text="Status / Type picklists"/>
+          <outline text="Assigned_Consultant__c, Assigned_Design_Expert__c (Text 50)"/>
+          <outline text="Is_Virtual__c, Lead_Source__c, Territory__c, TSRF__c"/>
+          <outline text="Cancel_Reason__c"/>
+          <outline text="External_Id__c — mark as External Id AND Unique"/>
+        </outline>
+        <outline text="Add to relevant page layouts"/>
+      </outline>
+
+      <outline text="Step 3 — Permission Set">
+        <outline text="Setup → Permission Sets → New → 'VH Scheduler Access'"/>
+        <outline text="Object permissions">
+          <outline text="Lead: Read, Edit, Convert"/>
+          <outline text="Contact, Account: Read"/>
+          <outline text="Opportunity: Read, Edit"/>
+          <outline text="Task, Event: Read, Create, Edit"/>
+          <outline text="ContentNote, Note: Read"/>
+          <outline text="Appointment__c: Read, Create, Edit, Delete"/>
+        </outline>
+        <outline text="System permissions">
+          <outline text="API Enabled"/>
+          <outline text="Manage Files"/>
+        </outline>
+        <outline text="Manage Assignments → assign to yourself + reps who'll test"/>
+      </outline>
+
+      <outline text="Step 4 — Cloud Run env vars">
+        <outline text="Store secret in Secret Manager">
+          <outline text="echo -n &quot;SECRET&quot; | gcloud secrets create sf-client-secret --data-file=-"/>
+        </outline>
+        <outline text="Update service env vars">
+          <outline text="gcloud run services update venture-home-scheduler"/>
+          <outline text="--max-instances 1 (required: in-memory token store)"/>
+          <outline text="SF_CLIENT_ID, SF_LOGIN_URL=https://test.salesforce.com"/>
+          <outline text="SF_REDIRECT_URI=callback URL"/>
+          <outline text="USE_MOCK=false, NODE_ENV=production"/>
+          <outline text="--update-secrets SF_CLIENT_SECRET=sf-client-secret:latest"/>
+        </outline>
+      </outline>
+
+      <outline text="Step 5 — Smoke test">
+        <outline text="1. Open the Cloud Run URL"/>
+        <outline text="2. Click 'Connect Salesforce' in the banner"/>
+        <outline text="3. Log in with .partcopy username"/>
+        <outline text="4. Banner becomes a green pill: 'Salesforce: &lt;your email&gt;'"/>
+        <outline text="5. New Appointment → Lookup Customer → type a name → matching Leads appear"/>
+        <outline text="6. Click chevron (▾) → customer history loads inline"/>
+        <outline text="7. Click result body → form prefills → Schedule"/>
+        <outline text="8. Sandbox: verify Appointment__c record exists with matching External_Id__c"/>
+      </outline>
+
+      <outline text="When it doesn't work">
+        <outline text="redirect_uri_mismatch">
+          <outline text="Connected App callback URL ≠ SF_REDIRECT_URI"/>
+          <outline text="Must be character-identical, no trailing slash"/>
+        </outline>
+        <outline text="invalid_grant">
+          <outline text="Wait 5–10 min after saving Connected App for SF propagation"/>
+        </outline>
+        <outline text="Banner stays unauthed after redirect">
+          <outline text="Cookie blocked — check browser console for Set-Cookie warnings"/>
+        </outline>
+        <outline text="401 on every API call">
+          <outline text="Permission set not assigned"/>
+          <outline text="OR user lacks 'API Enabled'"/>
+          <outline text="Setup → Users → user → Permission Set Assignments"/>
+        </outline>
+        <outline text="Appointment__c create fails">
+          <outline text="Field API name typo"/>
+          <outline text="Compare against full setup doc §1.3 line by line"/>
+        </outline>
+        <outline text="Logs: gcloud run services logs read venture-home-scheduler --region us-east1"/>
+      </outline>
+
+      <outline text="Production cutover (after sandbox is solid)">
+        <outline text="Repeat Steps 1–3 in production org (separate Connected App)"/>
+        <outline text="New Consumer Key + Secret in production Secret Manager entry"/>
+        <outline text="Swap SF_LOGIN_URL to https://login.salesforce.com"/>
+        <outline text="Redeploy"/>
+        <outline text="Reps click 'Connect Salesforce' once on prod URL — done"/>
+      </outline>
+
+    </outline>
+  </body>
+</opml>

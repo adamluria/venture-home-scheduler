@@ -57,6 +57,17 @@ for arg in "$@"; do
   esac
 done
 
+# Sanity-check the commit message — if someone accidentally passes a file
+# path (typical: terminal copy-paste glitch), refuse rather than commit junk.
+if [[ -n "$COMMIT_MSG" ]]; then
+  if [[ "$COMMIT_MSG" == /* ]] || [[ "$COMMIT_MSG" == ~* ]] || [[ "$COMMIT_MSG" == ./* ]]; then
+    fail "Commit message looks like a file path: \"$COMMIT_MSG\". Quote it properly: ./deploy.sh \"your message\""
+  fi
+  if [[ -e "$COMMIT_MSG" ]] || [[ -e "${COMMIT_MSG/#\~/$HOME}" ]]; then
+    fail "Commit message matches an existing file/path: \"$COMMIT_MSG\". Did the path leak in by mistake?"
+  fi
+fi
+
 run() {
   if $DRY_RUN; then
     echo "${DIM}[dry-run]${RST} $*"
@@ -66,12 +77,12 @@ run() {
 }
 
 # ── Pre-flight ───────────────────────────────────────────────────────
-step "Checking tools…"
+step "Checking tools..."
 command -v git    >/dev/null || fail "git not installed"
 command -v gcloud >/dev/null || fail "gcloud not installed (https://cloud.google.com/sdk/docs/install)"
 ok "git $(git --version | awk '{print $3}'), gcloud $(gcloud --version 2>/dev/null | head -1 | awk '{print $4}')"
 
-step "Checking repo state…"
+step "Checking repo state..."
 cd "$(git rev-parse --show-toplevel)"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 REMOTE="$(git remote get-url origin 2>/dev/null || true)"
@@ -94,7 +105,7 @@ fi
 
 # ── Git: stage / commit / push ───────────────────────────────────────
 if ! $SKIP_GIT; then
-  step "Staging changes…"
+  step "Staging changes..."
   run "git add -A"
 
   if [[ -z "$(git diff --cached --name-only)" ]]; then
@@ -107,7 +118,7 @@ if ! $SKIP_GIT; then
     run "git commit -m \"$COMMIT_MSG\""
   fi
 
-  step "Pushing to origin/$BRANCH…"
+  step "Pushing to origin/$BRANCH..."
   run "git push origin $BRANCH"
   ok "Pushed."
 else
@@ -115,7 +126,7 @@ else
 fi
 
 # ── Cloud Run deploy ─────────────────────────────────────────────────
-step "Deploying to Cloud Run ($PROJECT_ID / $REGION)…"
+step "Deploying to Cloud Run ($PROJECT_ID / $REGION)..."
 run "gcloud run deploy $SERVICE_NAME \
   --source . \
   --region $REGION \

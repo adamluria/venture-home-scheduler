@@ -3,6 +3,11 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import {
+  createSession, getSession, deleteSession,
+  setSessionCookie, clearSessionCookie,
+  loadSfdcSession, requireSfdcAuth, sfdcFetch,
+} from './sfdcAuth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,6 +29,10 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+// Load SF session from cookie on every request — sets req.sfdc + req.sessionId
+// when a valid session exists; leaves them undefined otherwise. Routes that
+// need auth either use the requireSfdcAuth middleware or check req.sfdc themselves.
+app.use(loadSfdcSession);
 
 // ─── Health check ────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
@@ -375,28 +384,78 @@ app.get('/auth/salesforce/callback', async (req, res) => {
       return res.status(400).json({ error: tokens.error_description || tokens.error });
     }
 
-    // TODO: Store tokens securely (database / encrypted session)
-    console.log('SFDC auth success. Instance:', tokens.instance_url);
-    // Store in memory for now (dev only)
+    // Capture identity claims so /api/sfdc/whoami can show who the rep is.
+    // Best-effort — failure here doesn't block auth.
+    let identity = {};
+    try {
+      if (tokens.id) {
+        const idRes = await fetch(tokens.id, { headers: { Authorization: `Bearer ${tokens.access_token}` } });
+        if (idRes.ok) {
+          const claims = await idRes.json();
+          identity = {
+            sfUserId:      claims.user_id,
+            sfEmail:       claims.email,
+            sfDisplayName: claims.display_name || claims.username,
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('SFDC identity claim fetch failed (non-blocking):', e.message);
+    }
+
+    // Create per-rep session, set HTTP-only cookie. Each rep gets their own
+    // tokens; multiple reps can use the app concurrently without conflicting.
+    const sessionId = createSession({ ...tokens, ...identity });
+    setSessionCookie(res, sessionId);
+    console.log(`SFDC auth success: ${identity.sfEmail || 'unknown'} → instance ${tokens.instance_url}`);
+
+    // Backward-compat: also seed app.locals.sfdc so any not-yet-refactored
+    // code path doesn't break during the rollout. Safe to remove once the
+    // refactor is fully verified in production.
     app.locals.sfdc = {
-      accessToken: tokens.access_token,
+      accessToken:  tokens.access_token,
       refreshToken: tokens.refresh_token,
-      instanceUrl: tokens.instance_url,
+      instanceUrl:  tokens.instance_url,
     };
 
-    res.redirect('/?sfdc_auth=success');
+    // Honor a return URL if the auth flow was triggered from a deep link
+    const returnTo = (req.query.return && /^\/[^/].*/.test(req.query.return)) ? req.query.return : '/?sfdc_auth=success';
+    res.redirect(returnTo);
   } catch (err) {
     console.error('SFDC OAuth error:', err);
     res.status(500).json({ error: 'Failed to exchange code', code: 'EXCHANGE_FAILED' });
   }
 });
 
+// GET /api/sfdc/whoami — frontend uses this to render the auth state in the UI.
+// Returns 200 with identity if authenticated, 200 with { authenticated: false }
+// if not (so the frontend doesn't have to special-case 401 for an explicit check).
+app.get('/api/sfdc/whoami', (req, res) => {
+  if (!req.sfdc) return res.json({ authenticated: false });
+  res.json({
+    authenticated: true,
+    email:       req.sfdc.sfEmail,
+    displayName: req.sfdc.sfDisplayName,
+    userId:      req.sfdc.sfUserId,
+    instanceUrl: req.sfdc.instanceUrl,
+  });
+});
+
+// POST /api/sfdc/logout — clear session + cookie. Doesn't revoke the SF
+// refresh_token; if you want hard revocation, hit
+// {loginUrl}/services/oauth2/revoke from the client side too.
+app.post('/api/sfdc/logout', (req, res) => {
+  if (req.sessionId) deleteSession(req.sessionId);
+  clearSessionCookie(res);
+  res.json({ success: true });
+});
+
 // GET /api/sfdc/rep-stats — pull real close rates from SFDC
 app.get('/api/sfdc/rep-stats', async (req, res) => {
-  const sfdc = app.locals.sfdc;
-  if (!sfdc?.accessToken) {
+  if (!req.sfdc) {
     return res.status(401).json({ error: 'Not authenticated with Salesforce', code: 'NO_AUTH' });
   }
+  const sfdc = req.sfdc;
 
   try {
     // SOQL: aggregate close rates per rep from Opportunity history
@@ -420,8 +479,8 @@ app.get('/api/sfdc/rep-stats', async (req, res) => {
 
 // GET /api/sfdc/performance/by-rep — close rate, sit rate, revenue by assigned consultant
 app.get('/api/sfdc/performance/by-rep', async (req, res) => {
-  const sfdc = app.locals.sfdc;
-  if (!sfdc?.accessToken) return res.status(401).json({ error: 'Not authenticated', code: 'NO_AUTH' });
+  if (!req.sfdc) return res.status(401).json({ error: 'Not authenticated', code: 'NO_AUTH' });
+  const sfdc = req.sfdc;
 
   try {
     const months = parseInt(req.query.months) || 6;
@@ -464,8 +523,8 @@ app.get('/api/sfdc/performance/by-rep', async (req, res) => {
 
 // GET /api/sfdc/performance/by-source — metrics broken down by lead source
 app.get('/api/sfdc/performance/by-source', async (req, res) => {
-  const sfdc = app.locals.sfdc;
-  if (!sfdc?.accessToken) return res.status(401).json({ error: 'Not authenticated', code: 'NO_AUTH' });
+  if (!req.sfdc) return res.status(401).json({ error: 'Not authenticated', code: 'NO_AUTH' });
+  const sfdc = req.sfdc;
 
   try {
     const months = parseInt(req.query.months) || 6;
@@ -493,8 +552,8 @@ app.get('/api/sfdc/performance/by-source', async (req, res) => {
 
 // GET /api/sfdc/performance/by-setter — metrics by who set/created the appointment
 app.get('/api/sfdc/performance/by-setter', async (req, res) => {
-  const sfdc = app.locals.sfdc;
-  if (!sfdc?.accessToken) return res.status(401).json({ error: 'Not authenticated', code: 'NO_AUTH' });
+  if (!req.sfdc) return res.status(401).json({ error: 'Not authenticated', code: 'NO_AUTH' });
+  const sfdc = req.sfdc;
 
   try {
     const months = parseInt(req.query.months) || 6;
@@ -521,8 +580,8 @@ app.get('/api/sfdc/performance/by-setter', async (req, res) => {
 
 // GET /api/sfdc/performance/by-territory — metrics by territory
 app.get('/api/sfdc/performance/by-territory', async (req, res) => {
-  const sfdc = app.locals.sfdc;
-  if (!sfdc?.accessToken) return res.status(401).json({ error: 'Not authenticated', code: 'NO_AUTH' });
+  if (!req.sfdc) return res.status(401).json({ error: 'Not authenticated', code: 'NO_AUTH' });
+  const sfdc = req.sfdc;
 
   try {
     const months = parseInt(req.query.months) || 6;
@@ -550,8 +609,8 @@ app.get('/api/sfdc/performance/by-territory', async (req, res) => {
 
 // GET /api/sfdc/performance/summary — top-level KPIs
 app.get('/api/sfdc/performance/summary', async (req, res) => {
-  const sfdc = app.locals.sfdc;
-  if (!sfdc?.accessToken) return res.status(401).json({ error: 'Not authenticated', code: 'NO_AUTH' });
+  if (!req.sfdc) return res.status(401).json({ error: 'Not authenticated', code: 'NO_AUTH' });
+  const sfdc = req.sfdc;
 
   try {
     const months = parseInt(req.query.months) || 6;
@@ -589,10 +648,10 @@ app.get('/api/sfdc/performance/summary', async (req, res) => {
 
 // GET /api/sfdc/opportunity/:id — get opp details for scheduling
 app.get('/api/sfdc/opportunity/:id', async (req, res) => {
-  const sfdc = app.locals.sfdc;
-  if (!sfdc?.accessToken) {
+  if (!req.sfdc) {
     return res.status(401).json({ error: 'Not authenticated with Salesforce', code: 'NO_AUTH' });
   }
+  const sfdc = req.sfdc;
 
   try {
     const fields = 'Id,Name,Account.Name,LeadSource,Install_Address__c,Install_Zip__c,Aurora_Avg_TSRF__c,Aurora_Project_Id__c,StageName';
@@ -611,10 +670,10 @@ app.get('/api/sfdc/opportunity/:id', async (req, res) => {
 
 // GET /api/sfdc/lead/:id — get Lead details for scheduling
 app.get('/api/sfdc/lead/:id', async (req, res) => {
-  const sfdc = app.locals.sfdc;
-  if (!sfdc?.accessToken) {
+  if (!req.sfdc) {
     return res.status(401).json({ error: 'Not authenticated with Salesforce', code: 'NO_AUTH' });
   }
+  const sfdc = req.sfdc;
 
   try {
     const fields = 'Id,Name,FirstName,LastName,Phone,MobilePhone,Email,Street,PostalCode,City,State,LeadSource,Company,Status';
@@ -631,10 +690,10 @@ app.get('/api/sfdc/lead/:id', async (req, res) => {
 
 // POST /api/sfdc/lead/:id/convert — convert Lead to Account + Contact + Opportunity
 app.post('/api/sfdc/lead/:id/convert', async (req, res) => {
-  const sfdc = app.locals.sfdc;
-  if (!sfdc?.accessToken) {
+  if (!req.sfdc) {
     return res.status(401).json({ error: 'Not authenticated with Salesforce', code: 'NO_AUTH' });
   }
+  const sfdc = req.sfdc;
 
   try {
     // Use Salesforce REST API composite to convert lead
@@ -698,10 +757,10 @@ app.post('/api/sfdc/lead/:id/convert', async (req, res) => {
 
 // POST /api/sfdc/appointment — create Appointment__c record in Salesforce
 app.post('/api/sfdc/appointment', async (req, res) => {
-  const sfdc = app.locals.sfdc;
-  if (!sfdc?.accessToken) {
+  if (!req.sfdc) {
     return res.status(401).json({ error: 'Not authenticated with Salesforce', code: 'NO_AUTH' });
   }
+  const sfdc = req.sfdc;
 
   try {
     const apt = req.body;
@@ -753,10 +812,10 @@ app.post('/api/sfdc/appointment', async (req, res) => {
 
 // PATCH /api/sfdc/appointment/:id — update Appointment__c record
 app.patch('/api/sfdc/appointment/:id', async (req, res) => {
-  const sfdc = app.locals.sfdc;
-  if (!sfdc?.accessToken) {
+  if (!req.sfdc) {
     return res.status(401).json({ error: 'Not authenticated with Salesforce', code: 'NO_AUTH' });
   }
+  const sfdc = req.sfdc;
 
   try {
     const updates = req.body; // field-value pairs to update
@@ -788,10 +847,10 @@ app.patch('/api/sfdc/appointment/:id', async (req, res) => {
 
 // DELETE /api/sfdc/appointment/:id — cancel/delete Appointment__c record
 app.delete('/api/sfdc/appointment/:id', async (req, res) => {
-  const sfdc = app.locals.sfdc;
-  if (!sfdc?.accessToken) {
+  if (!req.sfdc) {
     return res.status(401).json({ error: 'Not authenticated with Salesforce', code: 'NO_AUTH' });
   }
+  const sfdc = req.sfdc;
 
   try {
     // Soft-delete: update status to Canceled rather than hard delete
@@ -997,10 +1056,10 @@ app.get('/api/slack/test', async (req, res) => {
 //   - phone/email: exact-match SOQL (existing behavior)
 //   - name: fuzzy SOSL across Name fields (used by the in-app Lead picker)
 app.get('/api/sfdc/search', async (req, res) => {
-  const sfdc = app.locals.sfdc;
-  if (!sfdc?.accessToken) {
+  if (!req.sfdc) {
     return res.status(401).json({ error: 'Not authenticated with Salesforce', code: 'NO_AUTH' });
   }
+  const sfdc = req.sfdc;
 
   try {
     const { phone, email, name } = req.query;
@@ -1115,10 +1174,10 @@ app.get('/api/sfdc/search', async (req, res) => {
 //   silently returns [] on permission errors, so a missing ContentNote or
 //   Note read permission doesn't kill the whole endpoint.
 app.get('/api/sfdc/customer-history', async (req, res) => {
-  const sfdc = app.locals.sfdc;
-  if (!sfdc?.accessToken) {
+  if (!req.sfdc) {
     return res.status(401).json({ error: 'Not authenticated with Salesforce', code: 'NO_AUTH' });
   }
+  const sfdc = req.sfdc;
 
   const rawPhone = (req.query.phone || '').toString();
   const digits = rawPhone.replace(/\D/g, '').slice(-10); // last 10 digits
@@ -1126,15 +1185,15 @@ app.get('/api/sfdc/customer-history', async (req, res) => {
     return res.status(400).json({ error: 'phone parameter required (>=7 digits)' });
   }
 
-  const headers = { Authorization: `Bearer ${sfdc.accessToken}` };
   const errors = [];
 
   // Helper: SOQL query with a per-call try/catch. Returns records[] or [].
+  // Uses sfdcFetch so a 401 mid-history triggers refresh + retry once.
   const soql = async (q, label) => {
     try {
-      const r = await fetch(
-        `${sfdc.instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(q)}`,
-        { headers }
+      const r = await sfdcFetch(
+        req,
+        `${sfdc.instanceUrl}/services/data/v59.0/query?q=${encodeURIComponent(q)}`
       );
       if (!r.ok) {
         const t = await r.text().catch(() => '');
@@ -1161,9 +1220,9 @@ app.get('/api/sfdc/customer-history', async (req, res) => {
         `AccountId, Account.Name, CreatedDate, Description, ` +
         `Owner.Name LIMIT 25)`;
 
-    const sr = await fetch(
-      `${sfdc.instanceUrl}/services/data/v59.0/search?q=${encodeURIComponent(sosl)}`,
-      { headers }
+    const sr = await sfdcFetch(
+      req,
+      `${sfdc.instanceUrl}/services/data/v59.0/search?q=${encodeURIComponent(sosl)}`
     );
     if (!sr.ok) {
       const t = await sr.text().catch(() => '');

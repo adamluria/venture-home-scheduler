@@ -31,6 +31,7 @@ import CancelReasonModal from './components/CancelReasonModal.jsx';
 import { BulkActions, RepIsOutButton } from './components/BulkActions.jsx';
 import CustomerBookingPage from './components/CustomerBookingPage.jsx';
 import HelpPanel from './components/HelpPanel.jsx';
+import SfdcAuthBanner from './components/SfdcAuthBanner.jsx';
 import useIsMobile from './hooks/useIsMobile.js';
 import { forecastAllTerritories, predictSitRate, getSitRateTrend, RAW_DATA } from './data/forecastEngine.js';
 import { sendConfirmation, scheduleReminders } from './data/notificationService.js';
@@ -547,6 +548,11 @@ function Dashboard({ sfdcDefaults } = {}) {
         <MetricCard icon={<TrendingUp size={isMobile ? 16 : 18} color={T.green} />} label="Confirmed" value={`${completionRate}%`} compact={isMobile} />
         <MetricCard icon={<MapPin size={isMobile ? 16 : 18} color={T.accent} />} label="Regions" value={`${activeRegions}/${Object.keys(TERRITORIES).length}`} compact={isMobile} />
         <MetricCard icon={<Zap size={isMobile ? 16 : 18} color={T.green} />} label="This Week" value={mockAppointments.filter(a => !a.isPlaceholder).length} compact={isMobile} />
+      </div>
+
+      {/* ─── Salesforce auth status ─────────────────────────────── */}
+      <div style={{ marginBottom: isMobile ? '12px' : '16px' }}>
+        <SfdcAuthBanner />
       </div>
 
       {/* ─── Main Layout ────────────────────────────────────────── */}
