@@ -454,16 +454,19 @@ function Dashboard({ sfdcDefaults } = {}) {
         gap: isMobile ? '8px' : '12px',
       }}>
         <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '14px' }}>
-          <img
-            src="/logo-wordmark-white.svg"
-            alt="Venture Home"
+          <span
             style={{
-              height: isMobile ? '20px' : '26px',
-              objectFit: 'contain',
+              fontFamily: fonts.ui,
+              fontWeight: 700,
+              fontSize: isMobile ? '15px' : '20px',
+              letterSpacing: '0.12em',
+              color: '#fcfaf2',
               flexShrink: 0,
+              whiteSpace: 'nowrap',
             }}
-            onError={(e) => { e.target.style.display = 'none'; }}
-          />
+          >
+            VENTURE HOME
+          </span>
           <div>
             <h1 style={{ margin: '0 0 2px 0', fontSize: isMobile ? '18px' : '22px', fontWeight: '600' }}>
               Scheduling
