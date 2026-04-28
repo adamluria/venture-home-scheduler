@@ -239,6 +239,8 @@ function Dashboard({ sfdcDefaults } = {}) {
         if (apt.status) updateFields.Status__c = apt.status;
         if (apt.consultant) updateFields.Assigned_Consultant__c = apt.consultant;
         if (apt.cancelReason) updateFields.Cancel_Reason__c = apt.cancelReason;
+        if (apt.type) updateFields.Type__c = apt.type;
+        if (apt.isVirtual !== undefined) updateFields.Is_Virtual__c = !!apt.isVirtual;
         await fetch(`/api/sfdc/appointment/${apt.sfdcAppointmentId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
