@@ -357,7 +357,11 @@ app.get('/auth/salesforce', (req, res) => {
     response_type:         'code',
     client_id:             clientId,
     redirect_uri:          redirectUri,
-    scope:                 'api refresh_token id',
+    // 'id' scope dropped — some ECA configurations reject it. Auth + API +
+    // refresh-token still work without it; we just lose the auto-populated
+    // email in the banner. We can add it back once we know which scope
+    // identifier (id vs openid) the org accepts.
+    scope:                 'api refresh_token',
     code_challenge:        challenge,
     code_challenge_method: 'S256',
   });

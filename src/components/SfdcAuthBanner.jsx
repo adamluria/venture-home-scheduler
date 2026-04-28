@@ -54,11 +54,12 @@ export default function SfdcAuthBanner() {
 
   // Authed: render a tiny status pill (subtle, not in the way)
   if (state.status === 'authed') {
+    const who = state.identity.email || state.identity.displayName || 'connected';
     return (
       <div style={pillContainer}>
         <CheckCircle2 size={12} style={{ color: '#10B981' }} />
         <span style={{ color: T.muted }}>
-          Salesforce: <span style={{ color: T.text }}>{state.identity.email || state.identity.displayName}</span>
+          Salesforce: <span style={{ color: T.text }}>{who}</span>
         </span>
         <button onClick={handleLogout} style={iconButton} title="Sign out of Salesforce">
           <LogOut size={11} />

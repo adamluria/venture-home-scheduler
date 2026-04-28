@@ -161,6 +161,24 @@ Territory coverage has complex overlaps - some consultants cover multiple states
 
 ## Phase 6+: Post-MVP
 - [ ] Phase 2: Predictive consultant/closer pairing based on historical performance. Phase 3: Route optimization and traffic-aware scheduling. Phase 4: Full auto-assignment with machine learning intelligence.
+
+## Next Session: Smart Assignment Integration
+
+Pull the smart-assignment view from the sister repo (`github.com/CSVenture1/venture-home-sales-intelligence`) into this scheduler. Estimated 1-2 hours.
+
+**Source material**:
+- Sister repo `src/app.jsx` lines 1242-1539 — `AppointmentAssignmentView` component (~300 lines): customer cards, time slot selection, ranked rep recommendations.
+- Sister repo helper functions (`generateRepsBySource`, `generateInsights`, `getColor`) — lift only what's needed.
+
+**Integration plan**:
+1. **Lift the ranking UI** → new component `src/components/SmartAssignmentView.jsx`. Adapt theme imports to our `data/theme.js`.
+2. **Replace synthetic data** with our real `repPerformance.js` (`getRepSourceStats`).
+3. **Wire real SF performance** — call `/api/sfdc/performance/by-source` (endpoint exists, frontend never uses it). Cache on app boot. Feed into `getRepCloseRate`. ("Gap A")
+4. **Add "Best for {leadSource}" badge** to ranked picker results. ("Gap B")
+5. **Audit `Auto-assign (recommended)`** — verify it actually uses `rankRepsForSlot`. ("Gap C")
+
+**Out of scope**: the other three views in the sister repo (Lead Sources, Rep Performance, Market Overview) — management dashboards, not scheduling-decision tools.
+
 ---
 
 ## Known Challenges & Open Questions
