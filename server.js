@@ -7,6 +7,7 @@ import {
   createSession, getSession, deleteSession,
   setSessionCookie, clearSessionCookie,
   loadSfdcSession, requireSfdcAuth, sfdcFetch,
+  generatePkce, setPkceCookie, readPkceCookie, clearPkceCookie,
 } from './sfdcAuth.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -346,8 +347,21 @@ app.get('/auth/salesforce', (req, res) => {
     return res.status(500).json({ error: 'SF_CLIENT_ID not configured', code: 'MISSING_CONFIG' });
   }
 
-  const authUrl = `${loginUrl}/services/oauth2/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=api%20refresh_token`;
-  res.redirect(authUrl);
+  // PKCE: generate verifier, stash in HTTP-only cookie, send challenge to SF.
+  // The verifier round-trips back to /callback via cookie; SF gets only the
+  // challenge in the auth URL.
+  const { verifier, challenge } = generatePkce();
+  setPkceCookie(res, verifier);
+
+  const params = new URLSearchParams({
+    response_type:         'code',
+    client_id:             clientId,
+    redirect_uri:          redirectUri,
+    scope:                 'api refresh_token id',
+    code_challenge:        challenge,
+    code_challenge_method: 'S256',
+  });
+  res.redirect(`${loginUrl}/services/oauth2/authorize?${params.toString()}`);
 });
 
 app.get('/auth/salesforce/callback', async (req, res) => {
@@ -366,15 +380,26 @@ app.get('/auth/salesforce/callback', async (req, res) => {
   }
 
   try {
+    // PKCE: pull the verifier we stashed in the cookie before SF redirected
+    const codeVerifier = readPkceCookie(req);
+    if (!codeVerifier) {
+      return res.status(400).json({
+        error: 'Missing PKCE verifier cookie. The auth flow expired or the cookie was blocked. Try again.',
+        code: 'NO_PKCE',
+      });
+    }
+    clearPkceCookie(res); // one-time use
+
     const tokenRes = await fetch(`${loginUrl}/services/oauth2/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        grant_type: 'authorization_code',
+        grant_type:    'authorization_code',
         code,
-        client_id: clientId,
+        client_id:     clientId,
         client_secret: clientSecret,
-        redirect_uri: redirectUri,
+        redirect_uri:  redirectUri,
+        code_verifier: codeVerifier,
       }),
     });
 

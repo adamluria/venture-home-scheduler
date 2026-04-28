@@ -28,6 +28,16 @@ import crypto from 'crypto';
 const SESSION_COOKIE  = 'vhs_sfdc_session';
 const SESSION_TTL_MS  = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+// PKCE: Proof Key for Code Exchange (RFC 7636). Salesforce External Client
+// Apps require this. Flow:
+//   1. /auth/salesforce: generate verifier, send SHA256(verifier) as challenge
+//   2. /auth/salesforce/callback: send verifier with token exchange; SF
+//      checks SHA256(verifier) matches the challenge.
+// We stash the verifier in a short-lived HTTP-only cookie so it survives the
+// SF redirect round-trip without any server-side state.
+const PKCE_COOKIE     = 'vhs_sfdc_pkce';
+const PKCE_TTL_MS     = 10 * 60 * 1000; // 10 minutes
+
 // In-memory token store. For production: swap with Firestore-backed adapter
 // that implements .get(id), .set(id, value), .delete(id).
 const sessions = new Map();
@@ -102,6 +112,44 @@ export function setSessionCookie(res, sessionId) {
 
 export function clearSessionCookie(res) {
   res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+}
+
+// ─── PKCE helpers ───────────────────────────────────────────────────
+
+export function generatePkce() {
+  // Verifier: 43-128 chars, [A-Z / a-z / 0-9 / "-" / "." / "_" / "~"]
+  const verifier = crypto.randomBytes(32).toString('base64url');
+  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+  return { verifier, challenge };
+}
+
+export function setPkceCookie(res, verifier) {
+  const isProd = process.env.NODE_ENV === 'production';
+  const flags = [
+    `${PKCE_COOKIE}=${verifier}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    `Max-Age=${Math.floor(PKCE_TTL_MS / 1000)}`,
+  ];
+  if (isProd) flags.push('Secure');
+  // Use append so we don't overwrite a session cookie set on the same response
+  const existing = res.getHeader('Set-Cookie');
+  res.setHeader('Set-Cookie', existing
+    ? [].concat(existing, flags.join('; '))
+    : flags.join('; '));
+}
+
+export function readPkceCookie(req) {
+  return parseCookies(req)[PKCE_COOKIE] || null;
+}
+
+export function clearPkceCookie(res) {
+  const cleared = `${PKCE_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  const existing = res.getHeader('Set-Cookie');
+  res.setHeader('Set-Cookie', existing
+    ? [].concat(existing, cleared)
+    : cleared);
 }
 
 // ─── OAuth refresh ──────────────────────────────────────────────────
