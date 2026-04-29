@@ -6,6 +6,7 @@ import { consultants } from '../data/mockData.js';
 import { getSlotAvailability } from '../data/calendarService.js';
 import { leadToFormValues } from '../data/leadMapper.js';
 import { getRepCloseRate } from '../data/repPerformance.js';
+import { categorizeLeadSource } from '../data/leadSourceCategorizer.js';
 import SlotSuggestions from './SlotSuggestions.jsx';
 import LeadPicker from './LeadPicker.jsx';
 import SmartPickPreview from './SmartPickPreview.jsx';
@@ -419,11 +420,24 @@ function rankedConsultantOptions(reps, leadSource, timeSlot) {
 }
 
 // Make the synergy-key labels readable in the badge text.
-// 'paid' → 'paid leads', 'get_the_referral' → 'referrals', etc.
-// Falls back to the raw string for unrecognized picklist values.
+// Pure picklist values (e.g. "Adnet LLC") get categorized first so the
+// badge says "Best for paid leads" rather than "Best for Adnet LLC" —
+// honest about the synergy being category-level, not vendor-specific.
 function prettyLeadSource(s) {
   if (!s) return 'this source';
+  // If caller already passed a synergy key, format it directly
   switch (s) {
+    case 'paid':              return 'paid leads';
+    case 'self_gen':          return 'self-gen';
+    case 'get_the_referral':  return 'referrals';
+    case 'partner':           return 'partner leads';
+    case 'inbound':           return 'inbound';
+    case 'retail':            return 'retail';
+    case 'event':             return 'events';
+  }
+  // Otherwise: route the picklist value through the categorizer
+  const category = categorizeLeadSource(s);
+  switch (category) {
     case 'paid':              return 'paid leads';
     case 'self_gen':          return 'self-gen';
     case 'get_the_referral':  return 'referrals';

@@ -9,6 +9,7 @@
 
 import { consultants } from './mockData.js';
 import { getRealRepStats, getRealSourceStats } from './sfPerformance.js';
+import { categorizeLeadSource } from './leadSourceCategorizer.js';
 
 // ── Baseline close rates by position (applied to sits) ──────────────
 // Close rate = % of sits that result in a signed contract.
@@ -47,6 +48,9 @@ const SLOT_CLOSE_MULTIPLIER = {
 
 // ── Lead source × rep synergy bonuses ───────────────────────────────
 // Some reps over-index on certain lead types (e.g. GTR reps are refs-only).
+// Keys are SYNERGY CATEGORIES from leadSourceCategorizer.js, not raw picklist
+// values. The full 495-value LEAD_SOURCES picklist is collapsed to these 7
+// buckets at lookup time via categorizeLeadSource().
 const LEAD_SOURCE_SYNERGY = {
   get_the_referral: {
     // Referral reps and virtual closers convert refs well
@@ -67,6 +71,42 @@ const LEAD_SOURCE_SYNERGY = {
     perPosition: {
       sr_solar_consultant: 1.10,
       solar_consultant: 1.05,  // Self-gens are the rep's own leads → bias up
+    },
+  },
+  partner: {
+    // Partner channels (HVAC, roofing, installer referrals) — tenured reps build
+    // rapport with partners better; designers also handle bundled installs well.
+    defaultMultiplier: 1.00,
+    perPosition: {
+      regional_sales_manager: 1.05,
+      sr_solar_consultant:    1.05,
+      design_expert:          1.05,
+    },
+  },
+  inbound: {
+    // High-intent prospects (web form, call-in) — fast follow-up matters more
+    // than seniority. Field reps and consultants handle these well.
+    defaultMultiplier: 1.00,
+    perPosition: {
+      sr_solar_consultant: 1.05,
+      solar_consultant:    1.05,
+    },
+  },
+  retail: {
+    // Big-box co-marketing (Costco, BJ's, Tesla) — brand trust is the leverage,
+    // closers and managers extract it.
+    defaultMultiplier: 1.00,
+    perPosition: {
+      design_expert:          1.10,
+      regional_sales_manager: 1.05,
+    },
+  },
+  event: {
+    // Trade shows, home shows, golf outings — in-person rapport. Field reps win.
+    defaultMultiplier: 1.00,
+    perPosition: {
+      sr_solar_consultant: 1.05,
+      solar_consultant:    1.03,
     },
   },
 };
@@ -98,10 +138,16 @@ export function getRepCloseRate(repId, { timeSlot, leadSource } = {}) {
 
   const slotMult = timeSlot ? (SLOT_CLOSE_MULTIPLIER[timeSlot] ?? 1.0) : 1.0;
 
+  // Route any of the 495 picklist values through the categorizer so the
+  // 7-bucket synergy table catches all of them. categorizeLeadSource is a
+  // pure function with internal caching — cheap to call per lookup.
   let synergy = 1.0;
-  if (leadSource && LEAD_SOURCE_SYNERGY[leadSource]) {
-    const cfg = LEAD_SOURCE_SYNERGY[leadSource];
-    synergy = cfg.perPosition?.[rep.position] ?? cfg.defaultMultiplier ?? 1.0;
+  if (leadSource) {
+    const category = categorizeLeadSource(leadSource);
+    const cfg = LEAD_SOURCE_SYNERGY[category];
+    if (cfg) {
+      synergy = cfg.perPosition?.[rep.position] ?? cfg.defaultMultiplier ?? 1.0;
+    }
   }
 
   return Math.min(0.65, base * slotMult * synergy); // cap at 65%
