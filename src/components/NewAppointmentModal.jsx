@@ -5,6 +5,7 @@ import { LEAD_SOURCES } from '../data/leadSources.js';
 import { consultants } from '../data/mockData.js';
 import { getSlotAvailability } from '../data/calendarService.js';
 import { leadToFormValues } from '../data/leadMapper.js';
+import { getRepCloseRate } from '../data/repPerformance.js';
 import SlotSuggestions from './SlotSuggestions.jsx';
 import LeadPicker from './LeadPicker.jsx';
 import SmartPickPreview from './SmartPickPreview.jsx';
@@ -265,12 +266,19 @@ export default function NewAppointmentModal({ onClose, onSave, defaultDate, defa
             />
           </FormField>
 
-          {/* Consultant */}
+          {/* Consultant — ranked by close rate for the current lead source.
+              Reps whose position over-indexes on this source (LEAD_SOURCE_SYNERGY)
+              get a ★ "Best for {source}" badge in the option label.
+              When the user changes leadSource, the dropdown re-ranks and re-badges.
+          */}
           <FormField label="Assign Consultant">
             <Select
               value={form.consultant}
               onChange={v => setForm({ ...form, consultant: v })}
-              options={[{ value: '', label: 'Auto-assign (recommended)' }, ...availableConsultants.map(c => ({ value: c.id, label: `${c.name} — ${c.team}` }))]}
+              options={[
+                { value: '', label: 'Auto-assign (recommended)' },
+                ...rankedConsultantOptions(availableConsultants, form.leadSource, form.time),
+              ]}
             />
           </FormField>
 
@@ -376,6 +384,55 @@ function Input({ value, onChange, placeholder, type = 'text' }) {
       onBlur={e => e.target.style.borderColor = T.border}
     />
   );
+}
+
+// Rank the consultant dropdown by close rate for the current lead source,
+// and append a "★ Best for {source}" suffix to reps whose position over-indexes
+// on this source (their close rate with the source > close rate without).
+//
+// The ★ is unicode-safe in native <option> tags (no rich content needed).
+// Sort: highest close rate first, then alphabetical name as tiebreaker.
+function rankedConsultantOptions(reps, leadSource, timeSlot) {
+  const enriched = reps.map(c => {
+    const withSource    = getRepCloseRate(c.id, { leadSource, timeSlot });
+    const withoutSource = getRepCloseRate(c.id, { timeSlot });
+    const synergyRatio  = withoutSource > 0 ? withSource / withoutSource : 1.0;
+    return {
+      ...c,
+      closeRate:    withSource,
+      synergyRatio,
+      hasSynergy:   synergyRatio > 1.001,            // tolerate float fuzz
+    };
+  });
+  enriched.sort((a, b) => {
+    if (Math.abs(a.closeRate - b.closeRate) > 0.001) return b.closeRate - a.closeRate;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+  return enriched.map(c => {
+    const star = c.hasSynergy ? '★ ' : '';
+    const closePct = Math.round(c.closeRate * 100);
+    const label = c.hasSynergy
+      ? `${star}${c.name} — ${c.team} · ${closePct}% · Best for ${prettyLeadSource(leadSource)}`
+      : `${c.name} — ${c.team} · ${closePct}%`;
+    return { value: c.id, label };
+  });
+}
+
+// Make the synergy-key labels readable in the badge text.
+// 'paid' → 'paid leads', 'get_the_referral' → 'referrals', etc.
+// Falls back to the raw string for unrecognized picklist values.
+function prettyLeadSource(s) {
+  if (!s) return 'this source';
+  switch (s) {
+    case 'paid':              return 'paid leads';
+    case 'self_gen':          return 'self-gen';
+    case 'get_the_referral':  return 'referrals';
+    case 'partner':           return 'partner leads';
+    case 'inbound':           return 'inbound';
+    case 'retail':            return 'retail';
+    case 'event':             return 'events';
+    default:                  return s;
+  }
 }
 
 // Pull "city" or "state" out of an address like "123 Oak St, Norwalk, CT 06851"
