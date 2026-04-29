@@ -12,6 +12,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Cloud, CheckCircle2, AlertCircle, LogOut } from 'lucide-react';
 import { T, fonts } from '../data/theme.js';
+import { prefetch as prefetchSfPerformance } from '../data/sfPerformance.js';
 
 export default function SfdcAuthBanner() {
   const [state, setState] = useState({ status: 'loading', identity: null });
@@ -22,6 +23,9 @@ export default function SfdcAuthBanner() {
       .then(data => {
         if (data.authenticated) {
           setState({ status: 'authed', identity: data });
+          // Auth confirmed → warm the SF performance cache so the smart-pick
+          // preview has real data ready when the user opens Smart Schedule.
+          prefetchSfPerformance().catch(() => {});
         } else {
           setState({ status: 'unauthed', identity: null });
         }

@@ -8,6 +8,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { consultants } from './mockData.js';
+import { getRealRepStats, getRealSourceStats } from './sfPerformance.js';
 
 // ── Baseline close rates by position (applied to sits) ──────────────
 // Close rate = % of sits that result in a signed contract.
@@ -82,7 +83,18 @@ export function getRepCloseRate(repId, { timeSlot, leadSource } = {}) {
   const rep = consultants.find(c => c.id === repId);
   if (!rep) return 0.25;
 
-  const base = CLOSE_RATE_OVERRIDES[repId] ?? POSITION_CLOSE_RATE[rep.position] ?? 0.25;
+  // ── Prefer real SF data when available ─────────────────────────────
+  // The real value is closed/sits from Appointment__c history. We still
+  // apply the slot multiplier (time-of-day signal isn't in the SF rollup)
+  // and lead-source synergy as adjustments on top.
+  const real = getRealRepStats(repId);
+  let base;
+  if (real?.closeRate != null && real.sits >= 5) {
+    // Need at least 5 sits to trust the real number; below that, jitter dominates.
+    base = real.closeRate;
+  } else {
+    base = CLOSE_RATE_OVERRIDES[repId] ?? POSITION_CLOSE_RATE[rep.position] ?? 0.25;
+  }
 
   const slotMult = timeSlot ? (SLOT_CLOSE_MULTIPLIER[timeSlot] ?? 1.0) : 1.0;
 
@@ -262,8 +274,18 @@ const CANCEL_RATE_OVERRIDES = {
 
 export function getRepCancelRate(repId) {
   if (CANCEL_RATE_OVERRIDES[repId] != null) return CANCEL_RATE_OVERRIDES[repId];
+
+  // Prefer real SF data — count of canceled / total appointments in the
+  // trailing window from Appointment__c. Trust the number once we have at
+  // least 10 total appointments; below that, jitter dominates and the
+  // synthetic estimate is more stable.
+  const real = getRealRepStats(repId);
+  if (real?.cancelRate != null && real.totalAppts >= 10) {
+    return real.cancelRate;
+  }
+
+  // Synthetic fallback — deterministic jitter, range 3-28% (Chris's range)
   const seed = hashCode(repId + '|cancel');
-  // 3% to 28% — same range Chris uses in his synthetic gen
   return 0.03 + ((seed % 1000) / 1000) * 0.25;
 }
 

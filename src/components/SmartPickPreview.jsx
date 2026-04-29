@@ -21,6 +21,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { CheckCircle2, AlertCircle, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import { T, fonts } from '../data/theme.js';
 import { rankRepsForSlot } from '../data/slotSuggestionEngine.js';
+import { isRealDataAvailable } from '../data/sfPerformance.js';
 
 const PCT = (v) => (v == null ? '—' : `${v}%`);
 const NUM = (v) => (v == null ? '—' : v.toString());
@@ -89,6 +90,7 @@ export default function SmartPickPreview({ form }) {
           Smart pick: {top.repName}
         </strong>
         <Pill>P(close): {PCT(b.pClose)}</Pill>
+        <DataSourcePill />
         <button
           onClick={() => setExpanded(v => !v)}
           style={chevronBtn}
@@ -171,6 +173,25 @@ function Pill({ children }) {
       fontFamily: fonts.mono, fontSize: 11, color: T.accent,
       background: T.accentDim, padding: '2px 8px', borderRadius: 10,
     }}>{children}</span>
+  );
+}
+
+function DataSourcePill() {
+  // Honest indicator of whether ranking is using real SF performance data
+  // or the synthetic fallback. Flips to "Live" within ~1s of auth being
+  // confirmed (sfPerformance prefetch completes from SfdcAuthBanner).
+  const live = isRealDataAvailable();
+  const color = live ? '#10B981' : T.muted;
+  const label = live ? 'Live SF data' : 'Synthetic';
+  return (
+    <span style={{
+      fontFamily: fonts.ui, fontSize: 10, fontWeight: 600, color,
+      border: `1px solid ${color}`, padding: '1px 6px', borderRadius: 8,
+      textTransform: 'uppercase', letterSpacing: 0.5,
+    }} title={live
+      ? 'Cancel and close rates are from real Appointment__c history in your SF org.'
+      : 'Real SF data not yet loaded — using deterministic synthetic estimates.'
+    }>{label}</span>
   );
 }
 
