@@ -32,6 +32,7 @@ import { BulkActions, RepIsOutButton } from './components/BulkActions.jsx';
 import CustomerBookingPage from './components/CustomerBookingPage.jsx';
 import HelpPanel from './components/HelpPanel.jsx';
 import SfdcAuthBanner from './components/SfdcAuthBanner.jsx';
+import SmartAssignmentView from './components/SmartAssignmentView.jsx';
 import useIsMobile from './hooks/useIsMobile.js';
 import { forecastAllTerritories, predictSitRate, getSitRateTrend, RAW_DATA } from './data/forecastEngine.js';
 import { sendConfirmation, scheduleReminders } from './data/notificationService.js';
@@ -402,6 +403,7 @@ function Dashboard({ sfdcDefaults } = {}) {
                  : viewMode === 'team' ? `By Team — ${weekRangeLabel}`
                  : viewMode === 'analytics' ? 'Analytics'
                  : viewMode === 'leaderboard' ? 'Leaderboard'
+                 : viewMode === 'smart' ? 'Smart Assignments'
                  : weekRangeLabel;
 
   // Stats
@@ -650,6 +652,17 @@ function Dashboard({ sfdcDefaults } = {}) {
           )}
           {viewMode === 'depth' && (
             <DepthChartView selectedRegions={selectedRegions} />
+          )}
+          {viewMode === 'smart' && (
+            <SmartAssignmentView
+              onBook={(formData) => {
+                // Pre-fill the existing modal with everything from SmartAssignmentView,
+                // including the selected slot + ranked rep, then open the modal so the
+                // user can confirm and the SF write-back path stays unified.
+                setModalDefaults(formData);
+                setShowNewModal(true);
+              }}
+            />
           )}
           {viewMode === 'month' && (
             <MonthView

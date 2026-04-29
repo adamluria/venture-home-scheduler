@@ -10,6 +10,7 @@ export default function CalendarNav({ viewMode, onViewModeChange, onPrev, onNext
     { key: 'day',   label: 'Day', mobileLabel: 'Day' },
     { key: 'week',  label: 'Week', mobileLabel: 'Week' },
     { key: 'month', label: 'Month', mobileLabel: 'Month' },
+    { key: 'smart', label: 'Smart Assign', mobileLabel: 'Smart' },
     { key: 'slots', label: 'Open Slots', mobileLabel: 'Slots' },
     { key: 'rep',   label: 'By Rep', mobileLabel: 'Rep' },
     { key: 'depth', label: 'Depth Chart', mobileLabel: 'Depth' },
