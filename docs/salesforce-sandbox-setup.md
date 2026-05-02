@@ -60,7 +60,7 @@ Same Connected App → **Manage** → **Edit Policies**:
    | Customer Email | `Customer_Email__c` | Email | No | |
    | Scheduled Date | `Scheduled_Date__c` | Date | Yes | |
    | Scheduled Time | `Scheduled_Time__c` | Text(20) | Yes | e.g. "2:00 PM" |
-   | Status | `Status__c` | Picklist | Yes | values: Scheduled, Confirmed, Completed, Cancelled, No-Show |
+   | Status | `Status__c` | Picklist | Yes | values: Scheduled, Confirmed, Completed, Closed Won, Canceled, No Show |
    | Type | `Type__c` | Picklist | Yes | values: Appointment, Follow-up, Closer-only |
    | Assigned Consultant | `Assigned_Consultant__c` | Text(50) | No | scheduler's internal rep id |
    | Assigned Design Expert | `Assigned_Design_Expert__c` | Text(50) | No | scheduler's internal closer id |

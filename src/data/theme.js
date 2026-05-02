@@ -40,14 +40,19 @@ export const APPOINTMENT_TYPES = {
 };
 
 // Appointment statuses
+// Lowercase keys are the frontend's wire format; the Title Case `name` field
+// matches the Appointment__c.Status__c picklist values defined in
+// docs/salesforce-sandbox-setup.md §1.3. The server maps between them.
 export const APPOINTMENT_STATUSES = {
   scheduled:          { name: 'Scheduled',          color: T.muted  },
   confirmed:          { name: 'Confirmed',          color: T.green  },
   completed:          { name: 'Completed',          color: T.purple },
+  'closed-won':       { name: 'Closed Won',         color: T.cyan   },
+  'no-show':          { name: 'No Show',            color: T.red    },
   'needs-reschedule': { name: 'Needs Reschedule',   color: T.accent },
   rescheduled:        { name: 'Rescheduled',        color: T.cyan   },
-  canceled:           { name: 'Canceled',            color: T.red    },
-  disqualified:       { name: 'Disqualified',        color: T.dim    },
+  canceled:           { name: 'Canceled',           color: T.red    },
+  disqualified:       { name: 'Disqualified',       color: T.dim    },
 };
 
 // Time slots for scheduling

@@ -30,12 +30,11 @@ export default function AnalyticsView({ selectedRegions = [] }) {
     const total = recentAppts.length;
     const confirmed = recentAppts.filter(a => a.status === 'confirmed').length;
     const completed = recentAppts.filter(a => a.status === 'completed').length;
-    const sits = completed; // sat = completed
+    const closedWon = recentAppts.filter(a => a.status === 'closed-won').length;
+    const sits = completed + closedWon; // a closed-won deal was sat first
     const sitRate = total > 0 ? ((sits / total) * 100).toFixed(1) : '0';
 
-    // Close rate: closed won / confirmed
-    const closedWon = completed; // simplified: assume completed = closed
-    const closeRate = confirmed > 0 ? ((closedWon / confirmed) * 100).toFixed(1) : '0';
+    const closeRate = sits > 0 ? ((closedWon / sits) * 100).toFixed(1) : '0';
 
     // Avg appointments per rep per week
     const fieldReps = consultants.filter(c => !c.isCloserOnly);
@@ -48,8 +47,8 @@ export default function AnalyticsView({ selectedRegions = [] }) {
   const funnel = useMemo(() => {
     const booked = recentAppts.length;
     const confirmed = recentAppts.filter(a => a.status === 'confirmed').length;
-    const sat = recentAppts.filter(a => a.status === 'completed').length;
-    const closedWon = recentAppts.filter(a => a.status === 'completed').length;
+    const closedWon = recentAppts.filter(a => a.status === 'closed-won').length;
+    const sat = recentAppts.filter(a => a.status === 'completed').length + closedWon;
 
     return [
       { stage: 'Booked', count: booked, pct: 100, color: T.accent },
@@ -67,7 +66,7 @@ export default function AnalyticsView({ selectedRegions = [] }) {
         const appts = recentAppts.filter(a => a.leadSource === source);
         const count = appts.length;
         const confirmed = appts.filter(a => a.status === 'confirmed').length;
-        const closed = appts.filter(a => a.status === 'completed').length;
+        const closed = appts.filter(a => a.status === 'closed-won').length;
         const sitRate = predictSitRate(source);
         const convRate = confirmed > 0 ? ((closed / confirmed) * 100).toFixed(0) : '0';
 

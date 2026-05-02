@@ -328,7 +328,7 @@ export async function rankRepsForSlot({ date, slot, territory, leadSource, custo
     todayApptsByRep[rep.id] = mockAppointments.filter(a =>
       a.consultant === rep.id &&
       a.date === date &&
-      a.status !== 'cancelled' &&
+      a.status !== 'canceled' &&
       a.status !== 'no-show' &&
       !a.isPlaceholder
     ).length;

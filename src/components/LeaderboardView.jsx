@@ -68,8 +68,8 @@ export default function LeaderboardView({ selectedRegions = [] }) {
       );
 
       const total = repAppts.length;
-      const sits = repAppts.filter(a => a.status === 'completed' || a.status === 'confirmed').length;
-      const closed = repAppts.filter(a => a.status === 'completed').length;
+      const sits = repAppts.filter(a => a.status === 'completed' || a.status === 'closed-won').length;
+      const closed = repAppts.filter(a => a.status === 'closed-won').length;
       const noShows = repAppts.filter(a => a.status === 'no-show').length;
 
       // Mock revenue from overall stats
@@ -136,8 +136,8 @@ export default function LeaderboardView({ selectedRegions = [] }) {
     return Object.values(setterMap)
       .map(setter => {
         const total = setter.appts.length;
-        const sits = setter.appts.filter(a => a.status === 'completed' || a.status === 'confirmed').length;
-        const closed = setter.appts.filter(a => a.status === 'completed').length;
+        const sits = setter.appts.filter(a => a.status === 'completed' || a.status === 'closed-won').length;
+        const closed = setter.appts.filter(a => a.status === 'closed-won').length;
         const noShows = setter.appts.filter(a => a.status === 'no-show').length;
         const sitRate = total > 0 ? parseFloat(((sits / total) * 100).toFixed(1)) : 0;
         const closeRate = sits > 0 ? parseFloat(((closed / sits) * 100).toFixed(1)) : 0;

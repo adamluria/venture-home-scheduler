@@ -784,6 +784,20 @@ app.post('/api/sfdc/lead/:id/convert', async (req, res) => {
 
 // ─── Salesforce Appointment__c CRUD ─────────────────────────────────
 
+// Maps the frontend's lowercase, kebab-case status values to the Title Case
+// values stored in the Appointment__c.Status__c picklist. The picklist set
+// is defined in docs/salesforce-sandbox-setup.md §1.3 and matches the SOQL
+// reads in this file (e.g. 'Closed Won', 'No Show' — note the space).
+const STATUS_FE_TO_SF = {
+  scheduled: 'Scheduled',
+  confirmed: 'Confirmed',
+  completed: 'Completed',
+  'closed-won': 'Closed Won',
+  canceled: 'Canceled',
+  'no-show': 'No Show',
+};
+const toSfStatus = (s) => STATUS_FE_TO_SF[s] || s;
+
 // POST /api/sfdc/appointment — create Appointment__c record in Salesforce
 app.post('/api/sfdc/appointment', async (req, res) => {
   if (!req.sfdc) {
@@ -803,7 +817,7 @@ app.post('/api/sfdc/appointment', async (req, res) => {
       Customer_Email__c: apt.email || null,
       Scheduled_Date__c: apt.date,
       Scheduled_Time__c: apt.time,
-      Status__c: apt.status || 'Scheduled',
+      Status__c: toSfStatus(apt.status) || 'Scheduled',
       Type__c: apt.type || 'Appointment',
       Assigned_Consultant__c: apt.consultant || null,
       Assigned_Design_Expert__c: apt.designExpert || null,
@@ -847,7 +861,8 @@ app.patch('/api/sfdc/appointment/:id', async (req, res) => {
   const sfdc = req.sfdc;
 
   try {
-    const updates = req.body; // field-value pairs to update
+    const updates = { ...req.body }; // field-value pairs to update
+    if (updates.Status__c) updates.Status__c = toSfStatus(updates.Status__c);
     const updateRes = await fetch(
       `${sfdc.instanceUrl}/services/data/v59.0/sobjects/Appointment__c/${req.params.id}`,
       {
