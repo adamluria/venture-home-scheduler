@@ -74,6 +74,8 @@ Territory coverage has complex overlaps - some consultants cover multiple states
 - [ ] Copy the Consumer Key → goes into `SF_CLIENT_ID` in `.env.local`
 - [ ] Confirm field names (see Data Model → Fields to Confirm above)
 - [ ] Update SOQL queries with confirmed field names
+- [ ] **Create `Appointment__c` in sandbox** per `docs/salesforce-sandbox-setup.md` §1.3 — mark `Status__c` as **Restricted Picklist** so writes outside the canonical 6 values hard-fail (canonical set + rationale: see `docs/memory/2026-05-01.md`)
+- [ ] Smoke-test `/api/sfdc/appointment` POST + PATCH end-to-end once object exists
 - [ ] Test OAuth flow against sandbox, then production org
 - [ ] Write confirmed field names to `docs/memory/YYYY-MM-DD.md` as `[Tier 1]` and update `.auto-memory/project_venture-home-scheduler.md`
 
